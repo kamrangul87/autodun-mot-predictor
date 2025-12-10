@@ -1,3 +1,9 @@
 {
-  "version": 2
+  "version": 2,
+  "rewrites": [
+    { "source": "/",                  "destination": "/frontend/index.html" },
+    { "source": "/index.html",        "destination": "/frontend/index.html" },
+    { "source": "/model-details",     "destination": "/frontend/model-details.html" },
+    { "source": "/model-details.html","destination": "/frontend/model-details.html" }
+  ]
 }
