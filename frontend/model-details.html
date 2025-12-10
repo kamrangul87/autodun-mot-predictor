@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Autodun MOT Predictor – Model Details</title>
+  </head>
+  <body>
+    <h1>Autodun MOT Predictor – Model Details</h1>
+
+    <p><a href="index.html">← Back to MOT Predictor</a></p>
+
+    <h2>Overview</h2>
+    <p>
+      This tool estimates the probability that a vehicle will pass its next MOT
+      test. It is designed as an early warning and decision-support tool, not as
+      a replacement for a professional inspection.
+    </p>
+
+    <h2>Current Model (v1)</h2>
+    <ul>
+      <li>Model type: Logistic regression</li>
+      <li>Features used:
+        <ul>
+          <li><strong>Vehicle age</strong> (years since first registration)</li>
+          <li><strong>Mileage</strong> (current odometer reading)</li>
+        </ul>
+      </li>
+      <li>Training data: DVSA-style MOT samples (pass/fail outcomes)</li>
+      <li>Deployment: JSON model on GitHub → API on Vercel</li>
+    </ul>
+
+    <h2>How the Probability Is Calculated</h2>
+    <p>
+      The model computes a score
+      <code>z = w_age * vehicle_age + w_mileage * mileage + intercept</code>,
+      then converts this into a probability using the logistic function:
+    </p>
+
+    <pre>
+probability = 1 / (1 + exp(-z))
+    </pre>
+
+    <p>
+      The current parameters are stored in
+      <code>ml/models/mot_model_v1.json</code>.
+      For example:
+    </p>
+
+    <pre>
+{
+  "coef": [[-0.25, -0.00001]],
+  "intercept": [3.0],
+  "columns": ["vehicle_age", "mileage"]
+}
+    </pre>
+
+    <h2>Risk Bands</h2>
+    <ul>
+      <li><strong>High risk</strong>: probability &lt; 50%</li>
+      <li><strong>Medium risk</strong>: 50% – 70%</li>
+      <li><strong>Low risk</strong>: probability ≥ 70%</li>
+    </ul>
+
+    <p>
+      These thresholds can be adjusted as more data is added or different
+      calibration targets are required.
+    </p>
+
+    <h2>Limitations & Disclaimer</h2>
+    <ul>
+      <li>
+        The current model only uses age and mileage. Other factors such as
+        previous failures, servicing history, and vehicle type are not yet
+        included.
+      </li>
+      <li>
+        The prediction is a statistical estimate and cannot guarantee an MOT
+        outcome for any individual vehicle.
+      </li>
+      <li>
+        This tool is for information and experimentation purposes and should not
+        be used as the sole basis for financial or safety decisions.
+      </li>
+    </ul>
+
+    <h2>Roadmap</h2>
+    <ul>
+      <li>Ingest larger DVSA datasets for training.</li>
+      <li>
+        Add more features (fuel type, body type, previous MOT history, test
+        station).
+      </li>
+      <li>Model comparison dashboard and calibration plots.</li>
+      <li>
+        Integration with the main Autodun platform (EV Finder, MOT history,
+        etc.).
+      </li>
+    </ul>
+  </body>
+</html>
