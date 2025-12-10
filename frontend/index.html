@@ -1,79 +1,191 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="utf-8" />
-  <title>Autodun MOT Predictor – Model Details</title>
-</head>
-<body>
-  <h1>Autodun MOT Predictor – Model Details</h1>
+  <head>
+    <meta charset="utf-8" />
+    <title>Autodun MOT Predictor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        max-width: 800px;
+        margin: 40px auto;
+        padding: 0 16px;
+        line-height: 1.5;
+      }
 
-  <!-- ✅ FIXED: go to "/" instead of "index.html" -->
-  <p><a href="/">← Back to MOT Predictor</a></p>
+      h1 {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+      }
 
-  <h2>Overview</h2>
-  <p>
-    This tool estimates the probability that a vehicle will pass its next MOT test.
-    It is designed as an early warning and decision-support tool, not as a replacement
-    for a professional inspection.
-  </p>
+      p.description {
+        color: #444;
+        margin-bottom: 1.5rem;
+      }
 
-  <h2>Current Model (v1)</h2>
-  <ul>
-    <li>Model type: Logistic regression</li>
-    <li>Features used:
-      <ul>
-        <li><strong>Vehicle age</strong> (years since first registration)</li>
-        <li><strong>Mileage</strong> (current odometer reading)</li>
-      </ul>
-    </li>
-    <li>Training data: DVSA-style MOT samples (pass/fail outcomes)</li>
-    <li>Deployment: JSON model on GitHub → API on Vercel</li>
-  </ul>
+      form {
+        border: 1px solid #ddd;
+        padding: 16px;
+        border-radius: 6px;
+        margin-bottom: 24px;
+      }
 
-  <h2>How the Probability Is Calculated</h2>
-  <p>
-    The model computes a score <code>z</code> as a linear combination of the inputs:
-  </p>
+      label {
+        display: block;
+        margin-bottom: 4px;
+        font-weight: 600;
+      }
 
-  <pre>
-z = w_age * vehicle_age + w_mileage * mileage + intercept
-probability = 1 / (1 + exp(-z))
-  </pre>
+      input {
+        width: 100%;
+        padding: 8px;
+        margin-bottom: 12px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        box-sizing: border-box;
+      }
 
-  <p>
-    The current parameters are stored in <code>ml/models/mot_model_v1.json</code>. For example:
-  </p>
+      button {
+        padding: 10px 18px;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+        background: #111827;
+        color: #fff;
+        font-weight: 600;
+      }
 
-  <pre>
-{
-  "coef": [[-0.25, -0.00001]],
-  "intercept": [3.0],
-  "columns": ["vehicle_age", "mileage"]
-}
-  </pre>
+      button:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
 
-  <h2>Risk Bands</h2>
-  <p>For the current version, probabilities are mapped to risk bands as follows:</p>
+      .result {
+        border-left: 4px solid #2563eb;
+        background: #eff6ff;
+        padding: 12px 16px;
+        margin-top: 16px;
+        border-radius: 4px;
+      }
 
-  <ul>
-    <li><strong>Low risk</strong>: probability ≥ 0.80 – likely to pass</li>
-    <li><strong>Medium risk</strong>: 0.50 ≤ probability &lt; 0.80 – some issues possible</li>
-    <li><strong>High risk</strong>: probability &lt; 0.50 – higher chance of failure</li>
-  </ul>
+      .error {
+        border-left: 4px solid #dc2626;
+        background: #fef2f2;
+        padding: 12px 16px;
+        margin-top: 16px;
+        border-radius: 4px;
+        color: #b91c1c;
+      }
 
-  <h2>Limitations</h2>
-  <ul>
-    <li>Only uses age and mileage (no repair history, no detailed defect list yet).</li>
-    <li>Based on historical MOT-style data; future conditions may differ.</li>
-    <li>Does not guarantee a pass or fail – it is a statistical estimate.</li>
-  </ul>
+      .links {
+        margin-top: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Autodun MOT Predictor</h1>
+    <p class="description">
+      Estimate the probability that a vehicle will pass its next MOT using
+      mileage and vehicle age. This is an early warning and
+      decision-support tool, not a replacement for a professional inspection.
+    </p>
 
-  <h2>Planned Improvements</h2>
-  <ul>
-    <li>Add more features (make, model, fuel type, previous failures, etc.).</li>
-    <li>Train on larger UK-wide MOT datasets.</li>
-    <li>Switch to more advanced models (e.g. gradient boosting) if needed.</li>
-    <li>Expose versioned metrics (accuracy, precision, recall) on an admin page.</li>
-  </ul>
-</body>
+    <form id="mot-form">
+      <div>
+        <label for="vehicle_age">Vehicle age (years)</label>
+        <input
+          id="vehicle_age"
+          name="vehicle_age"
+          type="number"
+          min="0"
+          step="0.1"
+          required
+        />
+      </div>
+
+      <div>
+        <label for="mileage">Current mileage</label>
+        <input
+          id="mileage"
+          name="mileage"
+          type="number"
+          min="0"
+          step="100"
+          required
+        />
+      </div>
+
+      <button type="submit" id="submit-btn">Predict MOT outcome</button>
+    </form>
+
+    <div id="result-container"></div>
+    <div class="links">
+      <a href="/model-details.html">View model details</a>
+    </div>
+
+    <script>
+      const form = document.getElementById("mot-form");
+      const resultContainer = document.getElementById("result-container");
+      const submitBtn = document.getElementById("submit-btn");
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        resultContainer.innerHTML = "";
+        submitBtn.disabled = true;
+
+        const vehicle_age = parseFloat(
+          document.getElementById("vehicle_age").value
+        );
+        const mileage = parseFloat(document.getElementById("mileage").value);
+
+        try {
+          const res = await fetch("/api/predict", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ vehicle_age, mileage }),
+          });
+
+          if (!res.ok) {
+            throw new Error("API returned status " + res.status);
+          }
+
+          const data = await res.json();
+          const prob =
+            typeof data.probability === "number"
+              ? data.probability
+              : null;
+          const band = data.riskBand || data.band || "N/A";
+
+          let html = '<div class="result">';
+          html += "<strong>Prediction result</strong><br/>";
+
+          if (prob !== null) {
+            html +=
+              "Estimated probability of passing: " +
+              (prob * 100).toFixed(1) +
+              "%<br/>";
+          }
+
+          html += "Risk band: " + band + "<br/>";
+
+          if (data.explanation) {
+            html +=
+              "<br/><em>" + String(data.explanation) + "</em>";
+          }
+
+          html += "</div>";
+          resultContainer.innerHTML = html;
+        } catch (err) {
+          resultContainer.innerHTML =
+            '<div class="error">Could not get prediction. ' +
+            "Please try again later.<br/>" +
+            String(err.message || err) +
+            "</div>";
+        } finally {
+          submitBtn.disabled = false;
+        }
+      });
+    </script>
+  </body>
 </html>
