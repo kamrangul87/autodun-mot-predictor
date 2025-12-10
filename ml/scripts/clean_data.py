@@ -18,17 +18,11 @@ def main():
     # 5) Pass/Fail ko 1/0 mein convert karo (target column)
     df["label_pass"] = df["result"].map({"pass": 1, "fail": 0})
 
-    # 6) Sirf useful columns rakho
+    # 6) Sirf numeric useful columns rakho (abhi simple rakhte hain)
     df_clean = df[
         [
-            "make",
-            "model",
-            "first_registration_year",
-            "test_year",
             "vehicle_age",
             "mileage",
-            "fuel_type",
-            "region",
             "label_pass",
         ]
     ]
@@ -44,4 +38,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
