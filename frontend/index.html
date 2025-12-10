@@ -4,6 +4,57 @@
     <title>Autodun MOT Predictor</title>
   </head>
   <body>
-    <h1>MOT Predictor coming soon...</h1>
+    <h1>Autodun MOT Predictor (Demo)</h1>
+
+    <p>Fill the form (dummy for now) and see a test prediction from the API.</p>
+
+    <form id="mot-form">
+      <label>
+        Make:
+        <input type="text" name="make" value="Toyota" />
+      </label>
+      <br /><br />
+
+      <label>
+        Model:
+        <input type="text" name="model" value="Yaris" />
+      </label>
+      <br /><br />
+
+      <label>
+        Year:
+        <input type="number" name="year" value="2014" />
+      </label>
+      <br /><br />
+
+      <label>
+        Mileage:
+        <input type="number" name="mileage" value="89000" />
+      </label>
+      <br /><br />
+
+      <button type="submit">Check MOT Risk (Demo)</button>
+    </form>
+
+    <h2>Result</h2>
+    <pre id="result-box">No result yet.</pre>
+
+    <script>
+      const form = document.getElementById("mot-form");
+      const resultBox = document.getElementById("result-box");
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        resultBox.textContent = "Loading...";
+
+        try {
+          const res = await fetch("/api/predict-test");
+          const data = await res.json();
+          resultBox.textContent = JSON.stringify(data, null, 2);
+        } catch (err) {
+          resultBox.textContent = "Error calling API: " + err.message;
+        }
+      });
+    </script>
   </body>
 </html>
