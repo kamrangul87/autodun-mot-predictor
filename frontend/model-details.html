@@ -7,7 +7,6 @@
 <body>
   <h1>Autodun MOT Predictor – Model Details</h1>
 
-  <!-- ✅ FIXED: go to "/" instead of "index.html" -->
   <p><a href="/">← Back to MOT Predictor</a></p>
 
   <h2>Overview</h2>
@@ -31,9 +30,7 @@
   </ul>
 
   <h2>How the Probability Is Calculated</h2>
-  <p>
-    The model computes a score <code>z</code> as a linear combination of the inputs:
-  </p>
+  <p>The model computes a score <code>z</code> as a linear combination of the inputs:</p>
 
   <pre>
 z = w_age * vehicle_age + w_mileage * mileage + intercept
@@ -53,8 +50,6 @@ probability = 1 / (1 + exp(-z))
   </pre>
 
   <h2>Risk Bands</h2>
-  <p>For the current version, probabilities are mapped to risk bands as follows:</p>
-
   <ul>
     <li><strong>Low risk</strong>: probability ≥ 0.80 – likely to pass</li>
     <li><strong>Medium risk</strong>: 0.50 ≤ probability &lt; 0.80 – some issues possible</li>
