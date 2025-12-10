@@ -1,105 +1,79 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>Autodun MOT Predictor</title>
-  </head>
-  <body>
-    <h1>Autodun MOT Predictor (Real API v1)</h1>
+<head>
+  <meta charset="utf-8" />
+  <title>Autodun MOT Predictor – Model Details</title>
+</head>
+<body>
+  <h1>Autodun MOT Predictor – Model Details</h1>
 
-    <p>
-      Enter basic details and see a real MOT pass probability from the model.
-      (Demo: uses vehicle age and mileage only.)
-    </p>
+  <!-- ✅ FIXED: go to "/" instead of "index.html" -->
+  <p><a href="/">← Back to MOT Predictor</a></p>
 
-    <p>
-      <a href="model-details.html">View model details &amp; disclaimer</a>
-    </p>
+  <h2>Overview</h2>
+  <p>
+    This tool estimates the probability that a vehicle will pass its next MOT test.
+    It is designed as an early warning and decision-support tool, not as a replacement
+    for a professional inspection.
+  </p>
 
-    <form id="mot-form">
-      <label>
-        Make:
-        <input type="text" name="make" value="Toyota" />
-      </label>
-      <br /><br />
+  <h2>Current Model (v1)</h2>
+  <ul>
+    <li>Model type: Logistic regression</li>
+    <li>Features used:
+      <ul>
+        <li><strong>Vehicle age</strong> (years since first registration)</li>
+        <li><strong>Mileage</strong> (current odometer reading)</li>
+      </ul>
+    </li>
+    <li>Training data: DVSA-style MOT samples (pass/fail outcomes)</li>
+    <li>Deployment: JSON model on GitHub → API on Vercel</li>
+  </ul>
 
-      <label>
-        Model:
-        <input type="text" name="model" value="Yaris" />
-      </label>
-      <br /><br />
+  <h2>How the Probability Is Calculated</h2>
+  <p>
+    The model computes a score <code>z</code> as a linear combination of the inputs:
+  </p>
 
-      <label>
-        Year (first registration):
-        <input type="number" name="year" value="2014" />
-      </label>
-      <br /><br />
+  <pre>
+z = w_age * vehicle_age + w_mileage * mileage + intercept
+probability = 1 / (1 + exp(-z))
+  </pre>
 
-      <label>
-        Mileage:
-        <input type="number" name="mileage" value="89000" />
-      </label>
-      <br /><br />
+  <p>
+    The current parameters are stored in <code>ml/models/mot_model_v1.json</code>. For example:
+  </p>
 
-      <button type="submit">Check MOT Risk</button>
-    </form>
+  <pre>
+{
+  "coef": [[-0.25, -0.00001]],
+  "intercept": [3.0],
+  "columns": ["vehicle_age", "mileage"]
+}
+  </pre>
 
-    <h2>Result</h2>
-    <pre id="result-box">No result yet.</pre>
-    <p id="explanation"></p>
+  <h2>Risk Bands</h2>
+  <p>For the current version, probabilities are mapped to risk bands as follows:</p>
 
-    <script>
-      const form = document.getElementById("mot-form");
-      const resultBox = document.getElementById("result-box");
-      const explanation = document.getElementById("explanation");
+  <ul>
+    <li><strong>Low risk</strong>: probability ≥ 0.80 – likely to pass</li>
+    <li><strong>Medium risk</strong>: 0.50 ≤ probability &lt; 0.80 – some issues possible</li>
+    <li><strong>High risk</strong>: probability &lt; 0.50 – higher chance of failure</li>
+  </ul>
 
-      form.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        resultBox.textContent = "Loading...";
-        explanation.textContent = "";
+  <h2>Limitations</h2>
+  <ul>
+    <li>Only uses age and mileage (no repair history, no detailed defect list yet).</li>
+    <li>Based on historical MOT-style data; future conditions may differ.</li>
+    <li>Does not guarantee a pass or fail – it is a statistical estimate.</li>
+  </ul>
 
-        const formData = new FormData(form);
-        const year = Number(formData.get("year"));
-        const mileage = Number(formData.get("mileage"));
-
-        const testYear = 2024;
-        const vehicleAge = testYear - year;
-
-        try {
-          const res = await fetch("/api/predict", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              vehicle_age: vehicleAge,
-              mileage: mileage,
-            }),
-          });
-
-          const data = await res.json();
-          resultBox.textContent = JSON.stringify(data, null, 2);
-
-          if (data && typeof data.pass_probability === "number") {
-            const pct = (data.pass_probability * 100).toFixed(1);
-            let text = `Estimated MOT pass probability: ${pct}% (${data.risk_level} risk).`;
-
-            if (data.risk_level === "high") {
-              text +=
-                " Consider servicing the car before MOT or checking common failure points.";
-            } else if (data.risk_level === "medium") {
-              text +=
-                " Car is borderline – maintenance and good tyre/brake condition could help.";
-            } else {
-              text += " Car looks relatively safe for MOT based on age and mileage.";
-            }
-
-            explanation.textContent = text;
-          }
-        } catch (err) {
-          resultBox.textContent = "Error calling API: " + err.message;
-          explanation.textContent = "";
-        }
-      });
-    </script>
-  </body>
+  <h2>Planned Improvements</h2>
+  <ul>
+    <li>Add more features (make, model, fuel type, previous failures, etc.).</li>
+    <li>Train on larger UK-wide MOT datasets.</li>
+    <li>Switch to more advanced models (e.g. gradient boosting) if needed.</li>
+    <li>Expose versioned metrics (accuracy, precision, recall) on an admin page.</li>
+  </ul>
+</body>
 </html>
