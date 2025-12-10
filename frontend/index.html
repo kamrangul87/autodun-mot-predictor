@@ -4,9 +4,12 @@
     <title>Autodun MOT Predictor</title>
   </head>
   <body>
-    <h1>Autodun MOT Predictor (Demo)</h1>
+    <h1>Autodun MOT Predictor (Real API v1)</h1>
 
-    <p>Fill the form (dummy for now) and see a test prediction from the API.</p>
+    <p>
+      Enter basic details and see a real MOT pass probability from the model.
+      (Demo: uses vehicle age and mileage only.)
+    </p>
 
     <form id="mot-form">
       <label>
@@ -22,7 +25,7 @@
       <br /><br />
 
       <label>
-        Year:
+        Year (first registration):
         <input type="number" name="year" value="2014" />
       </label>
       <br /><br />
@@ -33,7 +36,7 @@
       </label>
       <br /><br />
 
-      <button type="submit">Check MOT Risk (Demo)</button>
+      <button type="submit">Check MOT Risk</button>
     </form>
 
     <h2>Result</h2>
@@ -47,8 +50,26 @@
         event.preventDefault();
         resultBox.textContent = "Loading...";
 
+        const formData = new FormData(form);
+        const year = Number(formData.get("year"));
+        const mileage = Number(formData.get("mileage"));
+
+        // Simple assumption: test_year = 2024 for now
+        const testYear = 2024;
+        const vehicleAge = testYear - year;
+
         try {
-          const res = await fetch("/api/predict-test");
+          const res = await fetch("/api/predict", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              vehicle_age: vehicleAge,
+              mileage: mileage
+            })
+          });
+
           const data = await res.json();
           resultBox.textContent = JSON.stringify(data, null, 2);
         } catch (err) {
