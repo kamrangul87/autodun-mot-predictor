@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Autodun MOT Predictor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        max-width: 800px;
+        margin: 40px auto;
+        padding: 0 16px;
+        line-height: 1.5;
+      }
+
+      h1 {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+      }
+
+      p.description {
+        color: #444;
+        margin-bottom: 1.5rem;
+      }
+
+      form {
+        border: 1px solid #ddd;
+        padding: 16px;
+        border-radius: 6px;
+        margin-bottom: 24px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 4px;
+        font-weight: 600;
+      }
+
+      input {
+        width: 100%;
+        padding: 8px;
+        margin-bottom: 12px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        box-sizing: border-box;
+      }
+
+      button {
+        padding: 10px 18px;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+        background: #111827;
+        color: #fff;
+        font-weight: 600;
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+
+      .result {
+        border-left: 4px solid #2563eb;
+        background: #eff6ff;
+        padding: 12px 16px;
+        margin-top: 16px;
+        border-radius: 4px;
+      }
+
+      .error {
+        border-left: 4px solid #dc2626;
+        background: #fef2f2;
+        padding: 12px 16px;
+        margin-top: 16px;
+        border-radius: 4px;
+        color: #b91c1c;
+      }
+
+      .links {
+        margin-top: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Autodun MOT Predictor</h1>
+    <p class="description">
+      Estimate the probability that a vehicle will pass its next MOT using
+      mileage and vehicle age. This is an early warning and
+      decision-support tool, not a replacement for a professional inspection.
+    </p>
+
+    <form id="mot-form">
+      <div>
+        <label for="vehicle_age">Vehicle age (years)</label>
+        <input
+          id="vehicle_age"
+          name="vehicle_age"
+          type="number"
+          min="0"
+          step="0.1"
+          required
+        />
+      </div>
+
+      <div>
+        <label for="mileage">Current mileage</label>
+        <input
+          id="mileage"
+          name="mileage"
+          type="number"
+          min="0"
+          step="100"
+          required
+        />
+      </div>
+
+      <button type="submit" id="submit-btn">Predict MOT outcome</button>
+    </form>
+
+    <div id="result-container"></div>
+    <div class="links">
+      <a href="/model-details.html">View model details</a>
+    </div>
+
+    <script>
+      const form = document.getElementById("mot-form");
+      const resultContainer = document.getElementById("result-container");
+      const submitBtn = document.getElementById("submit-btn");
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        resultContainer.innerHTML = "";
+        submitBtn.disabled = true;
+
+        const vehicle_age = parseFloat(
+          document.getElementById("vehicle_age").value
+        );
+        const mileage = parseFloat(document.getElementById("mileage").value);
+
+        try {
+          const res = await fetch("/api/predict", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ vehicle_age, mileage }),
+          });
+
+          if (!res.ok) {
+            throw new Error("API returned status " + res.status);
+          }
+
+          const data = await res.json();
+          const prob =
+            typeof data.probability === "number" ? data.probability : null;
+          const band = data.riskBand || data.band || "N/A";
+
+          let html = '<div class="result">';
+          html += "<strong>Prediction result</strong><br/>";
+
+          if (prob !== null) {
+            html +=
+              "Estimated probability of passing: " +
+              (prob * 100).toFixed(1) +
+              "%<br/>";
+          }
+
+          html += "Risk band: " + band + "<br/>";
+
+          if (data.explanation) {
+            html += "<br/><em>" + String(data.explanation) + "</em>";
+          }
+
+          html += "</div>";
+          resultContainer.innerHTML = html;
+        } catch (err) {
+          resultContainer.innerHTML =
+            '<div class="error">Could not get prediction. ' +
+            "Please try again later.<br/>" +
+            String(err.message || err) +
+            "</div>";
+        } finally {
+          submitBtn.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
