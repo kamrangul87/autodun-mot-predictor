@@ -71,6 +71,12 @@
         color: #b91c1c;
       }
 
+      .explanation {
+        margin-top: 10px;
+        font-size: 0.95rem;
+        color: #374151;
+      }
+
       /* MOT RISK METER */
       .risk-meter {
         width: 100%;
@@ -81,7 +87,6 @@
         margin-top: 10px;
         overflow: hidden;
       }
-
       .risk-fill {
         height: 100%;
         width: 0%;
@@ -115,14 +120,38 @@
       const resultContainer = document.getElementById("result-container");
       const submitBtn = document.getElementById("submit-btn");
 
+      function generateExplanation(age, mileage, risk) {
+        let text = "";
+
+        if (age > 12 && mileage > 120000) {
+          text = "Older vehicle with very high mileage. Likely issues: brake wear, suspension problems, emissions failures.";
+        } else if (age > 10 && mileage > 80000) {
+          text = "High wear expected due to age and mileage. Common MOT issues include tyres, suspension and exhaust.";
+        } else if (age < 6 && mileage < 60000) {
+          text = "Modern vehicle with moderate mileage. If serviced regularly, MOT pass likelihood is good.";
+        } else if (age < 4) {
+          text = "Newer vehicle. Very unlikely to fail unless there are specific defects.";
+        } else {
+          text = "General wear expected. Check tyres, lights, brakes, and emissions before MOT.";
+        }
+
+        if (risk === "high") {
+          text += " Risk is high — consider a pre-MOT check.";
+        } else if (risk === "medium") {
+          text += " Risk is moderate — servicing before MOT may improve the chances.";
+        } else {
+          text += " Risk is low — vehicle condition seems reasonable.";
+        }
+
+        return text;
+      }
+
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
         resultContainer.innerHTML = "";
         submitBtn.disabled = true;
 
-        const vehicle_age = parseFloat(
-          document.getElementById("vehicle_age").value
-        );
+        const vehicle_age = parseFloat(document.getElementById("vehicle_age").value);
         const mileage = parseFloat(document.getElementById("mileage").value);
 
         try {
@@ -137,29 +166,27 @@
           const prob = data.pass_probability;
           const risk = data.risk_level;
 
-          // Build result box
+          const explanation = generateExplanation(vehicle_age, mileage, risk);
+
           let html = `<div class="result">
               <strong>Prediction result</strong><br/>
-              Estimated probability of passing: ${(prob * 100).toFixed(
-                1
-              )}%<br/>
+              Estimated probability of passing: ${(prob * 100).toFixed(1)}%<br/>
               Risk level: ${risk}
+              <div class="explanation">${explanation}</div>
             </div>`;
 
           resultContainer.innerHTML = html;
 
-          // Update risk meter
           const fill = document.getElementById("risk-fill");
-
           if (risk === "low") {
             fill.style.width = "90%";
-            fill.style.background = "#16a34a"; // green
+            fill.style.background = "#16a34a";
           } else if (risk === "medium") {
             fill.style.width = "60%";
-            fill.style.background = "#facc15"; // yellow
-          } else if (risk === "high") {
+            fill.style.background = "#facc15";
+          } else {
             fill.style.width = "25%";
-            fill.style.background = "#dc2626"; // red
+            fill.style.background = "#dc2626";
           }
         } catch (err) {
           resultContainer.innerHTML = `<div class="error">
