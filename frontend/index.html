@@ -41,20 +41,22 @@
 
     <h2>Result</h2>
     <pre id="result-box">No result yet.</pre>
+    <p id="explanation"></p>
 
     <script>
       const form = document.getElementById("mot-form");
       const resultBox = document.getElementById("result-box");
+      const explanation = document.getElementById("explanation");
 
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
         resultBox.textContent = "Loading...";
+        explanation.textContent = "";
 
         const formData = new FormData(form);
         const year = Number(formData.get("year"));
         const mileage = Number(formData.get("mileage"));
 
-        // Simple assumption: test_year = 2024 for now
         const testYear = 2024;
         const vehicleAge = testYear - year;
 
@@ -62,18 +64,36 @@
           const res = await fetch("/api/predict", {
             method: "POST",
             headers: {
-              "Content-Type": "application/json"
+              "Content-Type": "application/json",
             },
             body: JSON.stringify({
               vehicle_age: vehicleAge,
-              mileage: mileage
-            })
+              mileage: mileage,
+            }),
           });
 
           const data = await res.json();
           resultBox.textContent = JSON.stringify(data, null, 2);
+
+          if (data && typeof data.pass_probability === "number") {
+            const pct = (data.pass_probability * 100).toFixed(1);
+            let text = `Estimated MOT pass probability: ${pct}% (${data.risk_level} risk).`;
+
+            if (data.risk_level === "high") {
+              text +=
+                " Consider servicing the car before MOT or checking common failure points.";
+            } else if (data.risk_level === "medium") {
+              text +=
+                " Car is borderline – maintenance and good tyre/brake condition could help.";
+            } else {
+              text += " Car looks relatively safe for MOT based on age and mileage.";
+            }
+
+            explanation.textContent = text;
+          }
         } catch (err) {
           resultBox.textContent = "Error calling API: " + err.message;
+          explanation.textContent = "";
         }
       });
     </script>
