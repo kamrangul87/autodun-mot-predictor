@@ -9,24 +9,27 @@
       body {
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
           sans-serif;
-        max-width: 800px;
+        max-width: 900px;
         margin: 40px auto;
         padding: 0 16px;
         line-height: 1.5;
+        background: #f9fafb;
       }
 
       h1 {
         font-size: 2rem;
         margin-bottom: 0.5rem;
         font-weight: 700;
+        text-align: left;
       }
 
       form {
-        border: 1px solid #ddd;
+        border: 1px solid #e5e7eb;
         padding: 16px;
-        border-radius: 6px;
+        border-radius: 8px;
         margin-bottom: 24px;
-        background: #fff;
+        background: #ffffff;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
       }
 
       label {
@@ -40,7 +43,7 @@
         padding: 10px;
         margin-bottom: 12px;
         border-radius: 4px;
-        border: 1px solid #ccc;
+        border: 1px solid #d1d5db;
         box-sizing: border-box;
       }
 
@@ -52,6 +55,11 @@
         background: #111827;
         color: #fff;
         font-weight: 600;
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: default;
       }
 
       .result {
@@ -77,20 +85,99 @@
         color: #374151;
       }
 
-      /* MOT RISK METER */
+      /* RISK METER */
+      .risk-meter-wrapper {
+        margin-top: 10px;
+      }
+
+      .risk-meter-label {
+        font-size: 0.85rem;
+        color: #4b5563;
+        margin-bottom: 4px;
+      }
+
       .risk-meter {
         width: 100%;
         height: 14px;
         background: #e5e7eb;
-        border-radius: 6px;
+        border-radius: 999px;
         position: relative;
-        margin-top: 10px;
         overflow: hidden;
       }
+
       .risk-fill {
         height: 100%;
         width: 0%;
         transition: width 0.6s ease;
+      }
+
+      /* COMPONENT BREAKDOWN */
+      .breakdown {
+        margin-top: 20px;
+        padding-top: 12px;
+        border-top: 1px solid #dbe3ef;
+      }
+
+      .breakdown-title {
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+
+      .breakdown-note {
+        font-size: 0.85rem;
+        color: #6b7280;
+        margin-bottom: 8px;
+      }
+
+      .component-row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 6px;
+      }
+
+      .component-label {
+        width: 130px;
+        font-size: 0.9rem;
+        color: #374151;
+      }
+
+      .component-bar {
+        flex: 1;
+        height: 10px;
+        background: #e5e7eb;
+        border-radius: 999px;
+        overflow: hidden;
+        margin-right: 8px;
+      }
+
+      .component-fill {
+        height: 100%;
+        width: 0%;
+        transition: width 0.5s ease;
+      }
+
+      .component-value {
+        width: 52px;
+        font-size: 0.8rem;
+        text-align: right;
+        color: #4b5563;
+      }
+
+      @media (max-width: 640px) {
+        .component-row {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        .component-label {
+          margin-bottom: 4px;
+        }
+        .component-bar {
+          width: 100%;
+          margin-bottom: 4px;
+        }
+        .component-value {
+          text-align: left;
+        }
       }
     </style>
   </head>
@@ -110,29 +197,40 @@
 
     <div id="result-container"></div>
 
-    <!-- RISK METER BAR -->
-    <div class="risk-meter" id="risk-meter">
-      <div class="risk-fill" id="risk-fill"></div>
+    <div class="risk-meter-wrapper">
+      <div class="risk-meter-label">Visual risk meter (higher = safer)</div>
+      <div class="risk-meter" id="risk-meter">
+        <div class="risk-fill" id="risk-fill"></div>
+      </div>
     </div>
+
+    <!-- Component breakdown chart -->
+    <div id="breakdown-container"></div>
 
     <script>
       const form = document.getElementById("mot-form");
       const resultContainer = document.getElementById("result-container");
       const submitBtn = document.getElementById("submit-btn");
+      const breakdownContainer = document.getElementById("breakdown-container");
 
       function generateExplanation(age, mileage, risk) {
         let text = "";
 
         if (age > 12 && mileage > 120000) {
-          text = "Older vehicle with very high mileage. Likely issues: brake wear, suspension problems, emissions failures.";
+          text =
+            "Older vehicle with very high mileage. Likely issues: brake wear, suspension problems, and emissions failures.";
         } else if (age > 10 && mileage > 80000) {
-          text = "High wear expected due to age and mileage. Common MOT issues include tyres, suspension and exhaust.";
+          text =
+            "High wear expected due to age and mileage. Common MOT issues include tyres, suspension and exhaust.";
         } else if (age < 6 && mileage < 60000) {
-          text = "Modern vehicle with moderate mileage. If serviced regularly, MOT pass likelihood is good.";
+          text =
+            "Modern vehicle with moderate mileage. If serviced regularly, MOT pass likelihood is good.";
         } else if (age < 4) {
-          text = "Newer vehicle. Very unlikely to fail unless there are specific defects.";
+          text =
+            "Newer vehicle. Very unlikely to fail unless there are specific defects or lack of maintenance.";
         } else {
-          text = "General wear expected. Check tyres, lights, brakes, and emissions before MOT.";
+          text =
+            "General wear expected. Check tyres, lights, brakes, and emissions before MOT.";
         }
 
         if (risk === "high") {
@@ -146,12 +244,86 @@
         return text;
       }
 
+      // Build a simple failure risk breakdown by component
+      function buildComponentBreakdown(probPass, age, mileage) {
+        const probFail = 1 - probPass;
+
+        // Base weights by component
+        let wBrakes = 1.0;
+        let wTyres = 1.0;
+        let wSuspension = 0.9;
+        let wEmissions = 0.7;
+        let wElectrics = 0.6;
+
+        // Adjust weights using age & mileage
+        const mFactor = Math.min(mileage / 60000, 3); // 0–3
+        const aFactor = Math.min(age / 8, 3); // 0–3
+
+        wBrakes += 0.6 * mFactor;
+        wTyres += 0.5 * mFactor;
+        wSuspension += 0.4 * (mFactor + aFactor) / 2;
+        wEmissions += 0.5 * aFactor;
+        wElectrics += 0.3 * aFactor;
+
+        const totalW = wBrakes + wTyres + wSuspension + wEmissions + wElectrics;
+
+        const components = [
+          { key: "Brakes", weight: wBrakes, color: "#dc2626" },
+          { key: "Tyres", weight: wTyres, color: "#f97316" },
+          { key: "Suspension", weight: wSuspension, color: "#eab308" },
+          { key: "Emissions", weight: wEmissions, color: "#16a34a" },
+          { key: "Lights & electrics", weight: wElectrics, color: "#2563eb" },
+        ];
+
+        return components.map((c) => {
+          const share = c.weight / totalW; // share of failures
+          const riskPercent = probFail * share * 100;
+          return {
+            name: c.key,
+            percent: riskPercent,
+            color: c.color,
+          };
+        });
+      }
+
+      function renderComponentBreakdown(probPass, age, mileage) {
+        const breakdownData = buildComponentBreakdown(probPass, age, mileage);
+
+        let html = `
+          <div class="breakdown">
+            <div class="breakdown-title">Likely MOT focus areas</div>
+            <div class="breakdown-note">
+              Approximate contribution to overall failure risk based on age, mileage, and model assumptions.
+            </div>
+        `;
+
+        breakdownData.forEach((c, idx) => {
+          const width = Math.max(4, Math.min(100, c.percent)); // keep bars visible
+          const valueLabel = c.percent.toFixed(1) + "%";
+          html += `
+            <div class="component-row">
+              <div class="component-label">${c.name}</div>
+              <div class="component-bar">
+                <div class="component-fill" style="width:${width}%; background:${c.color};"></div>
+              </div>
+              <div class="component-value">${valueLabel}</div>
+            </div>
+          `;
+        });
+
+        html += `</div>`;
+        breakdownContainer.innerHTML = html;
+      }
+
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
         resultContainer.innerHTML = "";
+        breakdownContainer.innerHTML = "";
         submitBtn.disabled = true;
 
-        const vehicle_age = parseFloat(document.getElementById("vehicle_age").value);
+        const vehicle_age = parseFloat(
+          document.getElementById("vehicle_age").value
+        );
         const mileage = parseFloat(document.getElementById("mileage").value);
 
         try {
@@ -160,6 +332,10 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ vehicle_age, mileage }),
           });
+
+          if (!res.ok) {
+            throw new Error("API returned status " + res.status);
+          }
 
           const data = await res.json();
 
@@ -177,6 +353,7 @@
 
           resultContainer.innerHTML = html;
 
+          // Risk meter fill
           const fill = document.getElementById("risk-fill");
           if (risk === "low") {
             fill.style.width = "90%";
@@ -188,10 +365,13 @@
             fill.style.width = "25%";
             fill.style.background = "#dc2626";
           }
+
+          // Component breakdown chart
+          renderComponentBreakdown(prob, vehicle_age, mileage);
         } catch (err) {
           resultContainer.innerHTML = `<div class="error">
               Could not get prediction.<br/>
-              ${err}
+              ${String(err.message || err)}
             </div>`;
         } finally {
           submitBtn.disabled = false;
