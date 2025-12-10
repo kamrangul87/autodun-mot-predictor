@@ -8,9 +8,7 @@
     resultContainer.innerHTML = "";
     submitBtn.disabled = true;
 
-    const vehicle_age = parseFloat(
-      document.getElementById("vehicle_age").value
-    );
+    const vehicle_age = parseFloat(document.getElementById("vehicle_age").value);
     const mileage = parseFloat(document.getElementById("mileage").value);
 
     try {
@@ -20,38 +18,23 @@
         body: JSON.stringify({ vehicle_age, mileage }),
       });
 
-      if (!res.ok) {
-        throw new Error("API returned status " + res.status);
-      }
-
       const data = await res.json();
 
-      // FIX: read correct fields returned by API
-      const prob = data.pass_probability;      // <--- FIXED
-      const risk = data.risk_level || "N/A";   // <--- FIXED
+      const prob = data.pass_probability;
+      const risk = data.risk_level;
 
-      let html = '<div class="result">';
-      html += "<strong>Prediction result</strong><br/>";
+      let html = `<div class="result">
+        <strong>Prediction result</strong><br/>
+        Estimated probability of passing: ${(prob * 100).toFixed(1)}%<br/>
+        Risk level: ${risk}
+      </div>`;
 
-      if (typeof prob === "number") {
-        html +=
-          "Estimated probability of passing: " +
-          (prob * 100).toFixed(1) +
-          "%<br/>";
-      } else {
-        html += "Estimated probability of passing: N/A<br/>";
-      }
-
-      html += "Risk band: " + risk + "<br/>";
-
-      html += "</div>";
       resultContainer.innerHTML = html;
     } catch (err) {
-      resultContainer.innerHTML =
-        '<div class="error">Could not get prediction. ' +
-        "Please try again later.<br/>" +
-        String(err.message || err) +
-        "</div>";
+      resultContainer.innerHTML = `<div class="error">
+        Could not get prediction.<br/>
+        ${err}
+      </div>`;
     } finally {
       submitBtn.disabled = false;
     }
