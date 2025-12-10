@@ -152,9 +152,7 @@
 
           const data = await res.json();
           const prob =
-            typeof data.probability === "number"
-              ? data.probability
-              : null;
+            typeof data.probability === "number" ? data.probability : null;
           const band = data.riskBand || data.band || "N/A";
 
           let html = '<div class="result">';
@@ -170,8 +168,7 @@
           html += "Risk band: " + band + "<br/>";
 
           if (data.explanation) {
-            html +=
-              "<br/><em>" + String(data.explanation) + "</em>";
+            html += "<br/><em>" + String(data.explanation) + "</em>";
           }
 
           html += "</div>";
