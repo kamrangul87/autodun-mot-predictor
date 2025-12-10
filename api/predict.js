@@ -2,7 +2,7 @@
 // Features: vehicle_age (years), mileage (miles)
 
 // These numbers match ml/models/mot_model_v1.json
-const coefAge = -0.25;      // weight for vehicle_age
+const coefAge = -0.25;        // weight for vehicle_age
 const coefMileage = -0.00001; // weight for mileage
 const intercept = 3.0;        // intercept term
 
@@ -19,7 +19,7 @@ export default function handler(req, res) {
 
   if (vehicle_age == null || mileage == null) {
     return res.status(400).json({
-      error: "Missing required fields: vehicle_age and mileage"
+      error: "Missing required fields: vehicle_age and mileage",
     });
   }
 
@@ -28,7 +28,7 @@ export default function handler(req, res) {
 
   if (Number.isNaN(ageNum) || Number.isNaN(mileageNum)) {
     return res.status(400).json({
-      error: "vehicle_age and mileage must be numbers"
+      error: "vehicle_age and mileage must be numbers",
     });
   }
 
@@ -48,7 +48,7 @@ export default function handler(req, res) {
     risk_level: risk,
     inputs: {
       vehicle_age: ageNum,
-      mileage: mileageNum
-    }
+      mileage: mileageNum,
+    },
   });
 }
