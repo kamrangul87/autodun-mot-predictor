@@ -50,7 +50,8 @@
       color: #cbd5f5;
     }
 
-    input {
+    input,
+    select {
       width: 100%;
       padding: 10px 12px;
       border-radius: 8px;
@@ -61,7 +62,8 @@
       box-sizing: border-box;
     }
 
-    input:focus {
+    input:focus,
+    select:focus {
       outline: none;
       border-color: #38bdf8;
       box-shadow: 0 0 0 1px #38bdf8;
@@ -110,8 +112,6 @@
       color: #9ca3af;
       margin-bottom: 10px;
     }
-
-    /* Risk meter */
 
     .risk-meter-wrapper {
       margin-top: 12px;
@@ -198,6 +198,12 @@
       color: #e5e7eb;
     }
 
+    .extra-factors {
+      margin-top: 6px;
+      font-size: 0.8rem;
+      color: #9ca3af;
+    }
+
     .error {
       margin-top: 10px;
       font-size: 0.85rem;
@@ -209,8 +215,8 @@
   <div class="container">
     <h1>Autodun MOT Predictor</h1>
     <div class="subtitle">
-      Estimate your MOT <strong>failure risk</strong> using age &amp; mileage. More
-      factors coming soon (service history, fuel type, etc.).
+      Estimate your MOT <strong>failure risk</strong> using age, mileage and history.
+      More factors coming soon (service history, MOT data, etc.).
     </div>
 
     <form id="mot-form">
@@ -235,6 +241,27 @@
           step="1000"
           placeholder="e.g. 85000"
           required
+        />
+      </div>
+
+      <div class="form-row">
+        <label for="fuel_type">Fuel type</label>
+        <select id="fuel_type">
+          <option value="petrol">Petrol</option>
+          <option value="diesel">Diesel</option>
+          <option value="hybrid">Hybrid</option>
+          <option value="electric">Electric</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label for="previous_fails">Previous MOT fails</label>
+        <input
+          id="previous_fails"
+          type="number"
+          min="0"
+          step="1"
+          placeholder="e.g. 0, 1, 2"
         />
       </div>
 
@@ -263,40 +290,57 @@
       return "High failure risk";
     }
 
-    function buildExplanation(score, age, mileage) {
+    function buildExplanation(score, age, mileage, fuelType, previousFails) {
       const band = getBand(score);
+      let baseText;
 
       if (band === "LOW") {
-        return (
+        baseText =
           "Based on your car being around " +
           age +
           " years old with " +
           mileage.toLocaleString() +
           " miles, the model thinks your MOT failure risk is relatively low. " +
-          "Keep up regular servicing and basic checks (tyres, lights, brakes) before the test."
-        );
-      }
-
-      if (band === "MEDIUM") {
-        return (
+          "Keep up regular servicing and basic checks (tyres, lights, brakes) before the test.";
+      } else if (band === "MEDIUM") {
+        baseText =
           "With a vehicle age of about " +
           age +
           " years and " +
           mileage.toLocaleString() +
           " miles, your risk sits in the middle. " +
-          "It is a good idea to do a pre-MOT check: tyres, brake pads, suspension and warning lights."
-        );
+          "It is a good idea to do a pre-MOT check: tyres, brake pads, suspension and warning lights.";
+      } else {
+        baseText =
+          "Because your car is around " +
+          age +
+          " years old and has " +
+          mileage.toLocaleString() +
+          " miles, the model flags a higher chance of MOT failure. " +
+          "Consider booking a service or addressing obvious issues (tyres below limit, dashboard warning lights, " +
+          "brakes, exhaust and corrosion) before you go for the test.";
       }
 
-      return (
-        "Because your car is around " +
-        age +
-        " years old and has " +
-        mileage.toLocaleString() +
-        " miles, the model flags a higher chance of MOT failure. " +
-        "Consider booking a service or addressing obvious issues (tyres below limit, dashboard warning lights, " +
-        "brakes, exhaust and corrosion) before you go for the test."
-      );
+      let extra = "";
+
+      if (fuelType === "diesel") {
+        extra +=
+          " Diesel vehicles can be more sensitive on emissions during MOT, " +
+          "so make sure there are no visible smoke issues and the engine is running smoothly. ";
+      } else if (fuelType === "electric") {
+        extra +=
+          " Electric cars avoid some traditional MOT issues (emissions), " +
+          "but tyres, suspension and brakes are still key check points. ";
+      }
+
+      if (previousFails > 0) {
+        extra +=
+          "Because this vehicle has previously failed MOT " +
+          previousFails +
+          " time(s), the model nudges risk upwards. Make sure previous advisories or fail points have been properly fixed.";
+      }
+
+      return baseText + " " + extra;
     }
 
     form.addEventListener("submit", async (e) => {
@@ -307,6 +351,9 @@
 
       const age = parseFloat(document.getElementById("vehicle_age").value);
       const mileage = parseFloat(document.getElementById("mileage").value);
+      const fuelType = document.getElementById("fuel_type").value;
+      const previousFailsRaw = document.getElementById("previous_fails").value;
+      const previousFails = previousFailsRaw ? parseInt(previousFailsRaw, 10) : 0;
 
       if (isNaN(age) || isNaN(mileage)) {
         errorContainer.textContent = "Please enter valid numbers for age and mileage.";
@@ -318,7 +365,12 @@
         const res = await fetch("/api/predict", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ vehicle_age: age, mileage }),
+          body: JSON.stringify({
+            vehicle_age: age,
+            mileage,
+            fuel_type: fuelType,
+            previous_fails: previousFails,
+          }),
         });
 
         if (!res.ok) {
@@ -327,15 +379,28 @@
 
         const data = await res.json();
 
-        // IMPORTANT: adjust this line if your API field name is different:
-        const prediction = typeof data.prediction === "number" ? data.prediction : 0;
-
-        // prediction assumed 0–1 → convert to percentage
-        const score = Math.max(0, Math.min(100, Math.round(prediction * 100)));
+        // If backend sends score directly, use it; otherwise compute from prediction
+        let score;
+        if (typeof data.score === "number") {
+          score = Math.max(0, Math.min(100, Math.round(data.score)));
+        } else {
+          const prediction =
+            typeof data.prediction === "number" ? data.prediction : 0;
+          score = Math.max(0, Math.min(100, Math.round(prediction * 100)));
+        }
 
         const band = getBand(score);
         const label = getLabel(score);
-        const explanation = buildExplanation(score, age, mileage);
+        const explanation = buildExplanation(
+          score,
+          age,
+          mileage,
+          fuelType,
+          previousFails
+        );
+
+        const fuelLabel =
+          fuelType.charAt(0).toUpperCase() + fuelType.slice(1).toLowerCase();
 
         resultContainer.innerHTML = `
           <div class="result-box">
@@ -359,6 +424,14 @@
                 <span><span class="risk-dot med"></span>40–69% Medium</span>
                 <span><span class="risk-dot high"></span>70–100% High</span>
               </div>
+            </div>
+
+            <div class="extra-factors">
+              Fuel type: <strong>${fuelLabel}</strong>${
+                previousFails > 0
+                  ? ` · Previous MOT fails: <strong>${previousFails}</strong>`
+                  : " · Previous MOT fails: <strong>None recorded</strong>"
+              }
             </div>
 
             <div class="explanation">
