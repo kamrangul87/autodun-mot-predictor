@@ -70,9 +70,7 @@
     }
 
     button {
-      width: 100%;
       padding: 10px 14px;
-      margin-top: 8px;
       border-radius: 999px;
       border: none;
       background: linear-gradient(to right, #22c55e, #22d3ee);
@@ -91,6 +89,12 @@
 
     button:not(:disabled):active {
       transform: scale(0.97);
+    }
+
+    /* Main submit button full width */
+    #submit-btn {
+      width: 100%;
+      margin-top: 8px;
     }
 
     .result-box {
@@ -209,6 +213,34 @@
       font-size: 0.85rem;
       color: #f97373;
     }
+
+    /* Number plate lookup layout */
+    .plate-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .plate-row input {
+      flex: 1;
+    }
+
+    .plate-row button {
+      white-space: nowrap;
+      font-size: 0.85rem;
+      padding: 9px 12px;
+    }
+
+    .lookup-status {
+      margin-top: 4px;
+      font-size: 0.78rem;
+      color: #9ca3af;
+      min-height: 1em;
+    }
+
+    .lookup-status strong {
+      color: #e5e7eb;
+    }
   </style>
 </head>
 <body>
@@ -220,6 +252,21 @@
     </div>
 
     <form id="mot-form">
+      <!-- New: Number plate lookup -->
+      <div class="form-row">
+        <label for="plate">Number plate (optional)</label>
+        <div class="plate-row">
+          <input
+            id="plate"
+            type="text"
+            placeholder="e.g. AB12 CDE"
+            autocomplete="off"
+          />
+          <button type="button" id="lookup-btn">Fetch MOT history</button>
+        </div>
+        <div id="lookup-status" class="lookup-status"></div>
+      </div>
+
       <div class="form-row">
         <label for="vehicle_age">Vehicle age (years)</label>
         <input
@@ -277,6 +324,11 @@
     const resultContainer = document.getElementById("result-container");
     const errorContainer = document.getElementById("error-container");
     const submitBtn = document.getElementById("submit-btn");
+
+    // New: number plate lookup elements
+    const plateInput = document.getElementById("plate");
+    const lookupBtn = document.getElementById("lookup-btn");
+    const lookupStatus = document.getElementById("lookup-status");
 
     function getBand(score) {
       if (score < 40) return "LOW";
@@ -342,6 +394,76 @@
 
       return baseText + " " + extra;
     }
+
+    // New: number plate lookup handler (uses dummy backend)
+    lookupBtn.addEventListener("click", async () => {
+      const plateRaw = plateInput.value.trim();
+      lookupStatus.textContent = "";
+      errorContainer.textContent = "";
+
+      if (!plateRaw) {
+        lookupStatus.textContent = "Please enter a number plate (e.g. AB12 CDE).";
+        return;
+      }
+
+      lookupBtn.disabled = true;
+      lookupStatus.textContent = "Looking up MOT history (dummy data)...";
+
+      try {
+        const res = await fetch("/api/mot-history", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ registration: plateRaw }),
+        });
+
+        if (!res.ok) {
+          throw new Error("Lookup failed with status " + res.status);
+        }
+
+        const data = await res.json();
+
+        // Fill form fields using dummy response
+        const currentYear = new Date().getFullYear();
+        const ageYears = data.first_used_year
+          ? Math.max(0, currentYear - data.first_used_year)
+          : "";
+
+        if (ageYears !== "") {
+          document.getElementById("vehicle_age").value = ageYears.toFixed(1);
+        }
+        if (typeof data.latest_mileage === "number") {
+          document.getElementById("mileage").value = data.latest_mileage;
+        }
+        if (typeof data.previous_fails === "number") {
+          document.getElementById("previous_fails").value = data.previous_fails;
+        }
+
+        const make = data.make || "Unknown make";
+        const model = data.model || "Unknown model";
+        const expiry = data.mot_expiry || "Unknown expiry";
+
+        lookupStatus.innerHTML =
+          "Dummy MOT data: <strong>" +
+          make +
+          " " +
+          model +
+          "</strong> · MOT expiry: <strong>" +
+          expiry +
+          "</strong> · Last mileage: <strong>" +
+          (data.latest_mileage
+            ? data.latest_mileage.toLocaleString()
+            : "n/a") +
+          "</strong> · Previous fails: <strong>" +
+          (data.previous_fails ?? "n/a") +
+          "</strong>.";
+      } catch (err) {
+        console.error(err);
+        lookupStatus.textContent =
+          "Could not fetch MOT history. Please try again.";
+      } finally {
+        lookupBtn.disabled = false;
+      }
+    });
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
