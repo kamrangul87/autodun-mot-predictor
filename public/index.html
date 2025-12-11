@@ -7,6 +7,7 @@
   <style>
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0b1120;
       background: radial-gradient(circle at top, #1f2937 0, #020617 45%, #000 100%);
       color: #e5e7eb;
       margin: 0;
@@ -26,6 +27,7 @@
       border-radius: 16px;
       box-shadow: 0 22px 45px rgba(0, 0, 0, 0.65);
       border: 1px solid rgba(148, 163, 184, 0.25);
+      box-sizing: border-box;
     }
 
     .title {
@@ -263,7 +265,7 @@
     <form id="mot-form">
       <div class="form-group">
         <label for="vrm">Vehicle Registration (VRM)</label>
-        <p class="hint">Example: AB12 CDE – we will use dummy history for now.</p>
+        <p class="hint">Example: AB12 CDE – dummy history only for now.</p>
         <input
           id="vrm"
           type="text"
@@ -275,7 +277,7 @@
 
       <div class="form-group">
         <label for="vehicle_age">Vehicle Age (years)</label>
-        <p class="hint">Rough age of the car (e.g. 5).</p>
+        <p class="hint">Rough age of the car, e.g. 5.</p>
         <input
           id="vehicle_age"
           type="number"
@@ -288,7 +290,7 @@
 
       <div class="form-group">
         <label for="mileage">Current Mileage</label>
-        <p class="hint">Approximate mileage (e.g. 65000).</p>
+        <p class="hint">Approximate mileage, e.g. 65000.</p>
         <input
           id="mileage"
           type="number"
@@ -304,7 +306,7 @@
       </button>
 
       <button type="button" class="btn-secondary" disabled>
-        Real DVSA API will be connected later once company is registered
+        Real DVSA MOT API will be connected later once company is registered
       </button>
     </form>
 
@@ -336,7 +338,7 @@
       submitBtn.textContent = "Calculating...";
 
       try {
-        // Call both APIs in parallel
+        // Call /api/predict and /api/mot-history together
         const [predictRes, historyRes] = await Promise.all([
           fetch("/api/predict", {
             method: "POST",
@@ -351,10 +353,14 @@
         ]);
 
         if (!predictRes.ok) {
-          throw new Error("Prediction API failed with status " + predictRes.status);
+          throw new Error(
+            "Prediction API failed with status " + predictRes.status
+          );
         }
         if (!historyRes.ok) {
-          throw new Error("MOT history API failed with status " + historyRes.status);
+          throw new Error(
+            "MOT history API failed with status " + historyRes.status
+          );
         }
 
         const predictJson = await predictRes.json();
@@ -392,7 +398,9 @@
                   <li class="history-item">
                     <div class="history-main">
                       <div>${r.test_date}</div>
-                      <div class="history-date">Recorded mileage: ${r.mileage.toLocaleString()} miles</div>
+                      <div class="history-date">
+                        Recorded mileage: ${r.mileage.toLocaleString()} miles
+                      </div>
                       ${advisory}
                     </div>
                     <div class="${resultClass}">${resultLabel}</div>
@@ -419,7 +427,9 @@
 
           <div class="card">
             <div class="card-header">
-              <div class="card-title">Dummy MOT history for ${historyJson.vrm || "this vehicle"}</div>
+              <div class="card-title">
+                Dummy MOT history for ${historyJson.vrm || "this vehicle"}
+              </div>
               <div class="card-tag">Fake data · For UI only</div>
             </div>
             ${historyHtml}
