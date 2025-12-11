@@ -1,5 +1,4 @@
-// api/predict.js  (or pages/api/predict.js)
-
+// api/predict.js
 // MOT predictor using logistic regression coefficients from ml/models/mot_model_v2.json
 
 import fs from "fs";
@@ -42,6 +41,15 @@ try {
     ],
   };
 }
+
+const LABELS = {
+  vehicle_age: "Vehicle age",
+  mileage: "Mileage",
+  fuel_type_diesel: "Diesel fuel type",
+  fuel_type_hybrid: "Hybrid fuel type",
+  fuel_type_electric: "Electric fuel type",
+  previous_fails: "Previous MOT fails",
+};
 
 export default function handler(req, res) {
   if (req.method !== "POST") {
@@ -86,15 +94,22 @@ export default function handler(req, res) {
   let z = model.intercept || 0;
   const coefs = model.coefficients || {};
 
+  // Per-feature contributions (on log-odds scale)
+  const contributions = {};
+  let maxAbsImpact = 0;
+
   for (const [name, value] of Object.entries(features)) {
     const w = typeof coefs[name] === "number" ? coefs[name] : 0;
-    z += w * value;
+    const impact = w * value; // contribution to z (log-odds)
+    contributions[name] = impact;
+    z += impact;
+    const absImpact = Math.abs(impact);
+    if (absImpact > maxAbsImpact) maxAbsImpact = absImpact;
   }
 
-  // Our trained model is for probability of FAIL (target y=1 = fail)
+  // Our trained model predicts probability of FAIL (y = 1)
   const failProb = logistic(z);
   const failProbClamped = Math.max(0, Math.min(1, failProb));
-  const score = Math.round(failProbClamped * 100); // 0–100 failure risk
 
   // Risk bands based on failure probability
   let risk = "low";
@@ -104,10 +119,39 @@ export default function handler(req, res) {
     risk = "medium";
   }
 
+  const score = Math.round(failProbClamped * 100); // 0–100 failure risk
+
+  // Build human-readable explanation list
+  const explanationItems = [];
+
+  if (maxAbsImpact > 0) {
+    for (const [name, impact] of Object.entries(contributions)) {
+      const absImpact = Math.abs(impact);
+      const relative = absImpact / maxAbsImpact; // 0–1
+
+      let strength = "small";
+      if (relative >= 0.66) strength = "strong";
+      else if (relative >= 0.33) strength = "moderate";
+
+      const direction =
+        impact > 0 ? "increases" : impact < 0 ? "reduces" : "has little effect";
+
+      explanationItems.push({
+        feature_key: name,
+        label: LABELS[name] || name,
+        direction,
+        strength,
+        impact,
+      });
+    }
+
+    // Sort: strongest impact first
+    explanationItems.sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact));
+  }
+
   return res.status(200).json({
     model_version: model.version || "2",
-    // For UI compatibility:
-    prediction: failProbClamped,          // same as failure risk
+    prediction: failProbClamped,          // alias for failure risk
     fail_probability: failProbClamped,
     pass_probability: 1 - failProbClamped,
     risk_level: risk,
@@ -118,5 +162,7 @@ export default function handler(req, res) {
       fuel_type: fuel || "not_provided",
       previous_fails: features.previous_fails,
     },
+    feature_contributions: contributions, // raw log-odds impacts
+    explanations: explanationItems,       // ready to show in UI
   });
 }
