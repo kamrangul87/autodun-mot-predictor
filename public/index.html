@@ -7,7 +7,6 @@
   <style>
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #0b1120;
       background: radial-gradient(circle at top, #1f2937 0, #020617 45%, #000 100%);
       color: #e5e7eb;
       margin: 0;
@@ -40,7 +39,7 @@
     .subtitle {
       font-size: 0.875rem;
       color: #9ca3af;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
 
     .badge-row {
@@ -120,17 +119,6 @@
       cursor: not-allowed;
     }
 
-    .btn-secondary {
-      width: 100%;
-      padding: 9px 14px;
-      border-radius: 999px;
-      background: transparent;
-      border: 1px dashed rgba(148, 163, 184, 0.8);
-      color: #e5e7eb;
-      font-size: 0.8rem;
-      margin-top: 10px;
-    }
-
     .result-container {
       margin-top: 18px;
     }
@@ -174,53 +162,6 @@
       color: #9ca3af;
     }
 
-    .history-list {
-      list-style: none;
-      padding-left: 0;
-      margin: 6px 0 0 0;
-      font-size: 0.8rem;
-    }
-
-    .history-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 4px 0;
-      border-bottom: 1px dashed rgba(51, 65, 85, 0.85);
-    }
-
-    .history-item:last-child {
-      border-bottom: none;
-    }
-
-    .history-main {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .history-date {
-      font-size: 0.78rem;
-      color: #9ca3af;
-    }
-
-    .history-result-pass {
-      font-size: 0.78rem;
-      font-weight: 600;
-      color: #22c55e;
-    }
-
-    .history-result-fail {
-      font-size: 0.78rem;
-      font-weight: 600;
-      color: #f97316;
-    }
-
-    .advisory {
-      font-size: 0.72rem;
-      color: #eab308;
-      margin-top: 2px;
-    }
-
     .small-note {
       font-size: 0.7rem;
       color: #64748b;
@@ -252,29 +193,17 @@
   <div class="container">
     <h1 class="title">MOT Pass Predictor (Demo)</h1>
     <p class="subtitle">
-      Enter your car details and see the <strong>dummy MOT history</strong> plus
-      an estimated pass probability. This is a demo – not official DVSA data.
+      Enter your car’s age and mileage to see an estimated chance of passing
+      the next MOT. Demo model only – not official advice.
     </p>
 
     <div class="badge-row">
       <span class="badge">Autodun Labs · Demo</span>
-      <span class="badge">No real DVSA API yet</span>
-      <span class="badge">Educational use only</span>
+      <span class="badge">Uses simple model (age + mileage)</span>
+      <span class="badge">MOT history feature coming later</span>
     </div>
 
     <form id="mot-form">
-      <div class="form-group">
-        <label for="vrm">Vehicle Registration (VRM)</label>
-        <p class="hint">Example: AB12 CDE – dummy history only for now.</p>
-        <input
-          id="vrm"
-          type="text"
-          required
-          placeholder="Enter UK number plate"
-          autocomplete="off"
-        />
-      </div>
-
       <div class="form-group">
         <label for="vehicle_age">Vehicle Age (years)</label>
         <p class="hint">Rough age of the car, e.g. 5.</p>
@@ -302,18 +231,15 @@
       </div>
 
       <button id="submit-btn" type="submit" class="btn">
-        Get MOT prediction + dummy history
-      </button>
-
-      <button type="button" class="btn-secondary" disabled>
-        Real DVSA MOT API will be connected later once company is registered
+        Get MOT pass prediction
       </button>
     </form>
 
     <div id="result-container" class="result-container"></div>
 
     <div class="footer">
-      Built for Autodun MOT Predictor MVP (demo only – not official advice).
+      Built for Autodun MOT Predictor MVP (demo only – not official advice).<br />
+      MOT history checker will be added later once DVSA API access is available.
     </div>
   </div>
 
@@ -325,49 +251,28 @@
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
-      const vrmRaw = document.getElementById("vrm").value || "";
       const vehicle_age = parseFloat(
         document.getElementById("vehicle_age").value
       );
       const mileage = parseFloat(document.getElementById("mileage").value);
-
-      const vrm = vrmRaw.trim();
 
       resultContainer.innerHTML = "";
       submitBtn.disabled = true;
       submitBtn.textContent = "Calculating...";
 
       try {
-        // Call /api/predict and /api/mot-history together
-        const [predictRes, historyRes] = await Promise.all([
-          fetch("/api/predict", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ vehicle_age, mileage }),
-          }),
-          fetch("/api/mot-history", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ vrm }),
-          }),
-        ]);
+        const res = await fetch("/api/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vehicle_age, mileage }),
+        });
 
-        if (!predictRes.ok) {
-          throw new Error(
-            "Prediction API failed with status " + predictRes.status
-          );
-        }
-        if (!historyRes.ok) {
-          throw new Error(
-            "MOT history API failed with status " + historyRes.status
-          );
+        if (!res.ok) {
+          throw new Error("Prediction API failed with status " + res.status);
         }
 
-        const predictJson = await predictRes.json();
-        const historyJson = await historyRes.json();
-
-        const percent = predictJson.probability_percent ?? 0;
-        const historyRecords = historyJson.records ?? [];
+        const data = await res.json();
+        const percent = data.probability_percent ?? 0;
 
         const confidenceLabel =
           percent >= 75
@@ -375,41 +280,6 @@
             : percent >= 50
             ? "Moderate chance of passing (demo only)."
             : "Low chance of passing – car may need attention (demo only).";
-
-        let historyHtml = "";
-        if (historyRecords.length === 0) {
-          historyHtml =
-            "<p class='small-note'>No dummy MOT history found for this VRM. Showing an empty history for now.</p>";
-        } else {
-          historyHtml =
-            "<ul class='history-list'>" +
-            historyRecords
-              .map((r) => {
-                const isPass = r.result === "PASS";
-                const resultClass = isPass
-                  ? "history-result-pass"
-                  : "history-result-fail";
-                const resultLabel = isPass ? "PASS" : "FAIL";
-                const advisory =
-                  r.advisory && r.advisory.trim().length
-                    ? `<div class="advisory">Advisory: ${r.advisory}</div>`
-                    : "";
-                return `
-                  <li class="history-item">
-                    <div class="history-main">
-                      <div>${r.test_date}</div>
-                      <div class="history-date">
-                        Recorded mileage: ${r.mileage.toLocaleString()} miles
-                      </div>
-                      ${advisory}
-                    </div>
-                    <div class="${resultClass}">${resultLabel}</div>
-                  </li>
-                `;
-              })
-              .join("") +
-            "</ul>";
-        }
 
         resultContainer.innerHTML = `
           <div class="card">
@@ -420,22 +290,8 @@
             <div class="probability">${percent}%</div>
             <div class="probability-label">${confidenceLabel}</div>
             <p class="small-note">
-              This is based on a simple demo model using only age + mileage.
-              Not financial or mechanical advice.
-            </p>
-          </div>
-
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title">
-                Dummy MOT history for ${historyJson.vrm || "this vehicle"}
-              </div>
-              <div class="card-tag">Fake data · For UI only</div>
-            </div>
-            ${historyHtml}
-            <p class="small-note">
-              These MOT records are <strong>dummy examples</strong>. Once you register your company,
-              we will replace this with a real DVSA MOT history API.
+              This estimate is based only on age and mileage using a simple demo model.
+              It is not official MOT or DVSA advice.
             </p>
           </div>
         `;
@@ -448,7 +304,7 @@
         `;
       } finally {
         submitBtn.disabled = false;
-        submitBtn.textContent = "Get MOT prediction + dummy history";
+        submitBtn.textContent = "Get MOT pass prediction";
       }
     });
   </script>
