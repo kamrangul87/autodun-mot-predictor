@@ -242,6 +242,9 @@
       color: #e5e7eb;
     }
   </style>
+
+  <!-- jsPDF for PDF generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
   <div class="container">
@@ -252,7 +255,7 @@
     </div>
 
     <form id="mot-form">
-      <!-- New: Number plate lookup -->
+      <!-- Number plate lookup -->
       <div class="form-row">
         <label for="plate">Number plate (optional)</label>
         <div class="plate-row">
@@ -325,7 +328,7 @@
     const errorContainer = document.getElementById("error-container");
     const submitBtn = document.getElementById("submit-btn");
 
-    // New: number plate lookup elements
+    // Number plate lookup elements
     const plateInput = document.getElementById("plate");
     const lookupBtn = document.getElementById("lookup-btn");
     const lookupStatus = document.getElementById("lookup-status");
@@ -395,7 +398,7 @@
       return baseText + " " + extra;
     }
 
-    // New: number plate lookup handler (uses dummy backend)
+    // Number plate lookup handler (dummy backend)
     lookupBtn.addEventListener("click", async () => {
       const plateRaw = plateInput.value.trim();
       lookupStatus.textContent = "";
@@ -501,11 +504,10 @@
 
         const data = await res.json();
 
-        // New: explanations from backend (if available)
         const explanationsRaw = Array.isArray(data.explanations) ? data.explanations : [];
         const explanationsTop = explanationsRaw.slice(0, 4);
 
-        // If backend sends score directly, use it; otherwise compute from prediction
+        // score from backend or from prediction
         let score;
         if (typeof data.score === "number") {
           score = Math.max(0, Math.min(100, Math.round(data.score)));
@@ -528,7 +530,8 @@
         const fuelLabel =
           fuelType.charAt(0).toUpperCase() + fuelType.slice(1).toLowerCase();
 
-             let insightsHtml = "";
+        // Build "Why this score?" HTML from explanations
+        let insightsHtml = "";
         if (explanationsTop.length > 0) {
           insightsHtml += `
             <div class="explanation" style="margin-top:8px;">
@@ -573,7 +576,6 @@
           `;
         }
 
-
         resultContainer.innerHTML = `
           <div class="result-box">
             <div class="result-headline">
@@ -612,6 +614,23 @@
             </div>
 
             ${insightsHtml}
+
+            <br />
+            <button onclick="downloadPdf()"
+              style="
+                width: 100%;
+                padding: 10px 14px;
+                margin-top: 12px;
+                border-radius: 999px;
+                border: none;
+                background: linear-gradient(to right, #3b82f6, #06b6d4);
+                color: #020617;
+                font-weight: 600;
+                font-size: 1rem;
+                cursor: pointer;
+              ">
+              Download MOT Report (PDF)
+            </button>
           </div>
         `;
       } catch (err) {
@@ -622,6 +641,55 @@
         submitBtn.disabled = false;
       }
     });
+
+    // PDF generator using jsPDF, reading from visible result box
+    function downloadPdf() {
+      const resultBox = document.querySelector(".result-box");
+      if (!resultBox) {
+        alert("Please run a prediction first.");
+        return;
+      }
+
+      if (!window.jspdf || !window.jspdf.jsPDF) {
+        alert("PDF library not loaded yet. Please try again.");
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ unit: "pt", format: "a4" });
+
+      const now = new Date().toLocaleString();
+      const plate = (document.getElementById("plate").value || "Not provided").toUpperCase();
+
+      const age = document.getElementById("vehicle_age").value || "-";
+      const mileage = document.getElementById("mileage").value || "-";
+      const fuel = document.getElementById("fuel_type").value || "-";
+      const prevFails = document.getElementById("previous_fails").value || "-";
+
+      const resultText = resultBox.innerText;
+
+      pdf.setFont("Helvetica", "normal");
+      pdf.setFontSize(18);
+      pdf.text("Autodun MOT Risk Report", 40, 50);
+
+      pdf.setFontSize(11);
+      pdf.text(`Generated: ${now}`, 40, 70);
+      pdf.text(`Number Plate: ${plate}`, 40, 88);
+
+      pdf.setFontSize(10);
+      pdf.text(`Vehicle age (years): ${age}`, 40, 110);
+      pdf.text(`Current mileage: ${mileage}`, 40, 126);
+      pdf.text(`Fuel type: ${fuel}`, 40, 142);
+      pdf.text(`Previous MOT fails: ${prevFails}`, 40, 158);
+
+      pdf.setFontSize(11);
+      pdf.text("Prediction details:", 40, 184);
+
+      pdf.setFontSize(10);
+      pdf.text(resultText, 40, 200, { maxWidth: 520 });
+
+      pdf.save(`MOT_Report_${plate || "vehicle"}.pdf`);
+    }
   </script>
 </body>
 </html>
