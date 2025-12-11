@@ -425,7 +425,6 @@
 
         const data = await res.json();
 
-        // Fill form fields using dummy response
         const currentYear = new Date().getFullYear();
         const ageYears = data.first_used_year
           ? Math.max(0, currentYear - data.first_used_year)
@@ -507,7 +506,6 @@
         const explanationsRaw = Array.isArray(data.explanations) ? data.explanations : [];
         const explanationsTop = explanationsRaw.slice(0, 4);
 
-        // score from backend or from prediction
         let score;
         if (typeof data.score === "number") {
           score = Math.max(0, Math.min(100, Math.round(data.score)));
@@ -631,6 +629,22 @@
               ">
               Download MOT Report (PDF)
             </button>
+
+            <button type="button" onclick="copyShareLink()"
+              style="
+                width: 100%;
+                padding: 9px 14px;
+                margin-top: 8px;
+                border-radius: 999px;
+                border: 1px solid #38bdf8;
+                background: transparent;
+                color: #e5e7eb;
+                font-weight: 500;
+                font-size: 0.95rem;
+                cursor: pointer;
+              ">
+              Copy share link
+            </button>
           </div>
         `;
       } catch (err) {
@@ -690,6 +704,69 @@
 
       pdf.save(`MOT_Report_${plate || "vehicle"}.pdf`);
     }
+
+    // Copy deep link with current inputs
+    function copyShareLink() {
+      const url = new URL(window.location.href);
+
+      const age = document.getElementById("vehicle_age").value;
+      const mileage = document.getElementById("mileage").value;
+      const fuel = document.getElementById("fuel_type").value;
+      const prevFails = document.getElementById("previous_fails").value;
+      const plate = document.getElementById("plate").value.trim();
+
+      if (age) url.searchParams.set("age", age);
+      if (mileage) url.searchParams.set("mileage", mileage);
+      if (fuel) url.searchParams.set("fuel", fuel);
+      if (prevFails) url.searchParams.set("fails", prevFails);
+      if (plate) url.searchParams.set("plate", plate);
+
+      const link = url.toString();
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard
+          .writeText(link)
+          .then(() => {
+            alert("Share link copied to clipboard.");
+          })
+          .catch(() => {
+            alert("Could not copy automatically. Here is your link:\n" + link);
+          });
+      } else {
+        // Fallback
+        prompt("Copy this link:", link);
+      }
+    }
+
+    // When opening a shared link, prefill form & auto-predict
+    function initFromUrl() {
+      try {
+        const url = new URL(window.location.href);
+
+        const age = url.searchParams.get("age");
+        const mileage = url.searchParams.get("mileage");
+        const fuel = url.searchParams.get("fuel");
+        const fails = url.searchParams.get("fails");
+        const plate = url.searchParams.get("plate");
+
+        if (plate) document.getElementById("plate").value = plate;
+        if (age) document.getElementById("vehicle_age").value = age;
+        if (mileage) document.getElementById("mileage").value = mileage;
+        if (fuel) document.getElementById("fuel_type").value = fuel;
+        if (fails) document.getElementById("previous_fails").value = fails;
+
+        if (age && mileage) {
+          setTimeout(() => {
+            form.dispatchEvent(new Event("submit"));
+          }, 200);
+        }
+      } catch (err) {
+        console.error("URL init failed", err);
+      }
+    }
+
+    // Run on load
+    initFromUrl();
   </script>
 </body>
 </html>
