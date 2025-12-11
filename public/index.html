@@ -379,6 +379,10 @@
 
         const data = await res.json();
 
+        // New: explanations from backend (if available)
+        const explanationsRaw = Array.isArray(data.explanations) ? data.explanations : [];
+        const explanationsTop = explanationsRaw.slice(0, 4);
+
         // If backend sends score directly, use it; otherwise compute from prediction
         let score;
         if (typeof data.score === "number") {
@@ -401,6 +405,39 @@
 
         const fuelLabel =
           fuelType.charAt(0).toUpperCase() + fuelType.slice(1).toLowerCase();
+
+        // Build "Why this score?" HTML from explanations
+        let insightsHtml = "";
+        if (explanationsTop.length > 0) {
+          insightsHtml += `
+            <div class="explanation" style="margin-top:8px;">
+              <strong>Why this score?</strong><br />
+              <ul style="margin:6px 0 0 18px; padding:0; list-style:disc; font-size:0.8rem;">
+          `;
+
+          explanationsTop.forEach((item) => {
+            const labelText = item.label || item.feature_key || "This factor";
+            const dir = item.direction || "has little effect";
+            const strength = item.strength || "small";
+
+            let strengthText = "";
+            if (strength === "strong") strengthText = "strong impact";
+            else if (strength === "moderate") strengthText = "moderate impact";
+            else strengthText = "small impact";
+
+            insightsHtml += `
+              <li>
+                <strong>${labelText}</strong> – ${dir} the estimated failure risk
+                (<span>${strengthText}</span>).
+              </li>
+            `;
+          });
+
+          insightsHtml += `
+              </ul>
+            </div>
+          `;
+        }
 
         resultContainer.innerHTML = `
           <div class="result-box">
@@ -438,6 +475,8 @@
               <strong>What this means for your MOT:</strong><br />
               ${explanation}
             </div>
+
+            ${insightsHtml}
           </div>
         `;
       } catch (err) {
