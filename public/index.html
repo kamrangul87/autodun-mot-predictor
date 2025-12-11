@@ -7,7 +7,7 @@
   <style>
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #0b1120;
+      background: radial-gradient(circle at top, #1f2937 0, #020617 45%, #000 100%);
       color: #e5e7eb;
       margin: 0;
       padding: 0;
@@ -21,752 +21,426 @@
       max-width: 480px;
       width: 100%;
       padding: 24px;
-      margin: 24px 16px;
-      background: radial-gradient(circle at top left, #1f2937, #020617);
+      margin: 24px 12px;
+      background: rgba(15, 23, 42, 0.95);
       border-radius: 16px;
-      border: 1px solid rgba(148, 163, 184, 0.3);
-      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.6);
+      box-shadow: 0 22px 45px rgba(0, 0, 0, 0.65);
+      border: 1px solid rgba(148, 163, 184, 0.25);
     }
 
-    h1 {
-      font-size: 1.6rem;
+    .title {
+      font-size: 1.5rem;
+      font-weight: 700;
       margin-bottom: 4px;
+      letter-spacing: 0.02em;
     }
 
     .subtitle {
-      font-size: 0.9rem;
+      font-size: 0.875rem;
       color: #9ca3af;
       margin-bottom: 20px;
     }
 
-    .form-row {
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 20px;
+    }
+
+    .badge {
+      font-size: 0.7rem;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      background: rgba(15, 23, 42, 0.9);
+      color: #e5e7eb;
+      white-space: nowrap;
+    }
+
+    .form-group {
       margin-bottom: 14px;
     }
 
     label {
       display: block;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       margin-bottom: 4px;
       color: #cbd5f5;
     }
 
-    input,
-    select {
+    .hint {
+      font-size: 0.7rem;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+
+    input {
       width: 100%;
-      padding: 10px 12px;
-      border-radius: 8px;
-      border: 1px solid #374151;
-      background: #020617;
-      color: #f9fafb;
-      font-size: 0.95rem;
+      padding: 9px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      background: rgba(15, 23, 42, 0.9);
+      color: #e5e7eb;
+      font-size: 0.9rem;
+      outline: none;
       box-sizing: border-box;
     }
 
-    input:focus,
-    select:focus {
-      outline: none;
-      border-color: #38bdf8;
-      box-shadow: 0 0 0 1px #38bdf8;
+    input::placeholder {
+      color: #6b7280;
     }
 
-    button {
+    input:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.4);
+    }
+
+    .btn {
+      width: 100%;
       padding: 10px 14px;
       border-radius: 999px;
       border: none;
-      background: linear-gradient(to right, #22c55e, #22d3ee);
-      color: #020617;
+      background: linear-gradient(to right, #22c55e, #16a34a);
+      color: #0b1120;
       font-weight: 600;
-      font-size: 1rem;
+      font-size: 0.95rem;
       cursor: pointer;
-      transition: opacity 0.15s ease, transform 0.1s ease;
+      margin-top: 4px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
 
-    button:disabled {
-      opacity: 0.5;
+    .btn:disabled {
+      opacity: 0.6;
       cursor: not-allowed;
-      transform: none;
     }
 
-    button:not(:disabled):active {
-      transform: scale(0.97);
-    }
-
-    /* Main submit button full width */
-    #submit-btn {
+    .btn-secondary {
       width: 100%;
-      margin-top: 8px;
-    }
-
-    .result-box {
-      margin-top: 20px;
-      padding: 12px 12px 16px;
-      border-radius: 12px;
-      background: rgba(15, 23, 42, 0.8);
-      border: 1px solid rgba(148, 163, 184, 0.5);
-    }
-
-    .result-headline {
-      font-size: 1rem;
-      font-weight: 600;
-      margin-bottom: 4px;
-    }
-
-    .result-subtitle {
+      padding: 9px 14px;
+      border-radius: 999px;
+      background: transparent;
+      border: 1px dashed rgba(148, 163, 184, 0.8);
+      color: #e5e7eb;
       font-size: 0.8rem;
-      color: #9ca3af;
+      margin-top: 10px;
+    }
+
+    .result-container {
+      margin-top: 18px;
+    }
+
+    .card {
+      border-radius: 14px;
+      padding: 12px 14px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(148, 163, 184, 0.4);
       margin-bottom: 10px;
     }
 
-    .risk-meter-wrapper {
-      margin-top: 12px;
-      text-align: center;
-    }
-
-    .risk-meter-circle {
-      width: 160px;
-      height: 160px;
-      border-radius: 50%;
-      margin: 0 auto;
-      position: relative;
-      background: conic-gradient(
-        #22c55e 0deg,
-        #22c55e 120deg,
-        #eab308 120deg,
-        #eab308 240deg,
-        #ef4444 240deg,
-        #ef4444 360deg
-      );
+    .card-header {
       display: flex;
-      align-items: center;
-      justify-content: center;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 4px;
     }
 
-    .risk-meter-inner {
-      width: 120px;
-      height: 120px;
-      border-radius: 50%;
-      background: #020617;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      color: #e5e7eb;
+    .card-title {
+      font-size: 0.9rem;
+      font-weight: 600;
     }
 
-    .risk-score {
-      font-size: 1.9rem;
+    .card-tag {
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      color: #cbd5f5;
+    }
+
+    .probability {
+      font-size: 1.5rem;
       font-weight: 700;
+      margin: 4px 0;
     }
 
-    .risk-label {
-      font-size: 0.85rem;
+    .probability-label {
+      font-size: 0.75rem;
+      color: #9ca3af;
+    }
+
+    .history-list {
+      list-style: none;
+      padding-left: 0;
+      margin: 6px 0 0 0;
+      font-size: 0.8rem;
+    }
+
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      border-bottom: 1px dashed rgba(51, 65, 85, 0.85);
+    }
+
+    .history-item:last-child {
+      border-bottom: none;
+    }
+
+    .history-main {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .history-date {
+      font-size: 0.78rem;
+      color: #9ca3af;
+    }
+
+    .history-result-pass {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #22c55e;
+    }
+
+    .history-result-fail {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #f97316;
+    }
+
+    .advisory {
+      font-size: 0.72rem;
+      color: #eab308;
       margin-top: 2px;
     }
 
-    .risk-bands {
-      display: flex;
-      justify-content: space-between;
+    .small-note {
       font-size: 0.7rem;
-      margin-top: 8px;
-      color: #9ca3af;
-    }
-
-    .risk-dot {
-      display: inline-block;
-      width: 7px;
-      height: 7px;
-      border-radius: 999px;
-      margin-right: 4px;
-    }
-
-    .risk-dot.low {
-      background: #22c55e;
-    }
-
-    .risk-dot.med {
-      background: #eab308;
-    }
-
-    .risk-dot.high {
-      background: #ef4444;
-    }
-
-    .explanation {
-      margin-top: 12px;
-      font-size: 0.85rem;
-      color: #d1d5db;
-      line-height: 1.4;
-    }
-
-    .explanation strong {
-      color: #e5e7eb;
-    }
-
-    .extra-factors {
+      color: #64748b;
       margin-top: 6px;
-      font-size: 0.8rem;
-      color: #9ca3af;
     }
 
     .error {
-      margin-top: 10px;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       color: #f97373;
+      margin-top: 6px;
     }
 
-    /* Number plate lookup layout */
-    .plate-row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
+    .footer {
+      margin-top: 16px;
+      text-align: center;
+      font-size: 0.7rem;
+      color: #6b7280;
     }
 
-    .plate-row input {
-      flex: 1;
-    }
-
-    .plate-row button {
-      white-space: nowrap;
-      font-size: 0.85rem;
-      padding: 9px 12px;
-    }
-
-    .lookup-status {
-      margin-top: 4px;
-      font-size: 0.78rem;
-      color: #9ca3af;
-      min-height: 1em;
-    }
-
-    .lookup-status strong {
-      color: #e5e7eb;
+    @media (max-width: 480px) {
+      .container {
+        margin: 16px 10px;
+        padding: 18px;
+      }
     }
   </style>
-
-  <!-- jsPDF for PDF generation -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
   <div class="container">
-    <h1>Autodun MOT Predictor</h1>
-    <div class="subtitle">
-      Estimate your MOT <strong>failure risk</strong> using age, mileage and history.
-      More factors coming soon (service history, MOT data, etc.).
+    <h1 class="title">MOT Pass Predictor (Demo)</h1>
+    <p class="subtitle">
+      Enter your car details and see the <strong>dummy MOT history</strong> plus
+      an estimated pass probability. This is a demo – not official DVSA data.
+    </p>
+
+    <div class="badge-row">
+      <span class="badge">Autodun Labs · Demo</span>
+      <span class="badge">No real DVSA API yet</span>
+      <span class="badge">Educational use only</span>
     </div>
 
     <form id="mot-form">
-      <!-- Number plate lookup -->
-      <div class="form-row">
-        <label for="plate">Number plate (optional)</label>
-        <div class="plate-row">
-          <input
-            id="plate"
-            type="text"
-            placeholder="e.g. AB12 CDE"
-            autocomplete="off"
-          />
-          <button type="button" id="lookup-btn">Fetch MOT history</button>
-        </div>
-        <div id="lookup-status" class="lookup-status"></div>
+      <div class="form-group">
+        <label for="vrm">Vehicle Registration (VRM)</label>
+        <p class="hint">Example: AB12 CDE – we will use dummy history for now.</p>
+        <input
+          id="vrm"
+          type="text"
+          required
+          placeholder="Enter UK number plate"
+          autocomplete="off"
+        />
       </div>
 
-      <div class="form-row">
-        <label for="vehicle_age">Vehicle age (years)</label>
+      <div class="form-group">
+        <label for="vehicle_age">Vehicle Age (years)</label>
+        <p class="hint">Rough age of the car (e.g. 5).</p>
         <input
           id="vehicle_age"
           type="number"
           min="0"
-          step="0.1"
-          placeholder="e.g. 7"
+          step="1"
           required
+          placeholder="e.g. 5"
         />
       </div>
 
-      <div class="form-row">
-        <label for="mileage">Current mileage</label>
+      <div class="form-group">
+        <label for="mileage">Current Mileage</label>
+        <p class="hint">Approximate mileage (e.g. 65000).</p>
         <input
           id="mileage"
           type="number"
           min="0"
           step="1000"
-          placeholder="e.g. 85000"
           required
+          placeholder="e.g. 65000"
         />
       </div>
 
-      <div class="form-row">
-        <label for="fuel_type">Fuel type</label>
-        <select id="fuel_type">
-          <option value="petrol">Petrol</option>
-          <option value="diesel">Diesel</option>
-          <option value="hybrid">Hybrid</option>
-          <option value="electric">Electric</option>
-        </select>
-      </div>
+      <button id="submit-btn" type="submit" class="btn">
+        Get MOT prediction + dummy history
+      </button>
 
-      <div class="form-row">
-        <label for="previous_fails">Previous MOT fails</label>
-        <input
-          id="previous_fails"
-          type="number"
-          min="0"
-          step="1"
-          placeholder="e.g. 0, 1, 2"
-        />
-      </div>
-
-      <button id="submit-btn" type="submit">Predict MOT Risk</button>
+      <button type="button" class="btn-secondary" disabled>
+        Real DVSA API will be connected later once company is registered
+      </button>
     </form>
 
-    <div id="result-container"></div>
-    <div id="error-container" class="error"></div>
+    <div id="result-container" class="result-container"></div>
+
+    <div class="footer">
+      Built for Autodun MOT Predictor MVP (demo only – not official advice).
+    </div>
   </div>
 
   <script>
     const form = document.getElementById("mot-form");
     const resultContainer = document.getElementById("result-container");
-    const errorContainer = document.getElementById("error-container");
     const submitBtn = document.getElementById("submit-btn");
-
-    // Number plate lookup elements
-    const plateInput = document.getElementById("plate");
-    const lookupBtn = document.getElementById("lookup-btn");
-    const lookupStatus = document.getElementById("lookup-status");
-
-    function getBand(score) {
-      if (score < 40) return "LOW";
-      if (score < 70) return "MEDIUM";
-      return "HIGH";
-    }
-
-    function getLabel(score) {
-      if (score < 40) return "Low failure risk";
-      if (score < 70) return "Moderate failure risk";
-      return "High failure risk";
-    }
-
-    function buildExplanation(score, age, mileage, fuelType, previousFails) {
-      const band = getBand(score);
-      let baseText;
-
-      if (band === "LOW") {
-        baseText =
-          "Based on your car being around " +
-          age +
-          " years old with " +
-          mileage.toLocaleString() +
-          " miles, the model thinks your MOT failure risk is relatively low. " +
-          "Keep up regular servicing and basic checks (tyres, lights, brakes) before the test.";
-      } else if (band === "MEDIUM") {
-        baseText =
-          "With a vehicle age of about " +
-          age +
-          " years and " +
-          mileage.toLocaleString() +
-          " miles, your risk sits in the middle. " +
-          "It is a good idea to do a pre-MOT check: tyres, brake pads, suspension and warning lights.";
-      } else {
-        baseText =
-          "Because your car is around " +
-          age +
-          " years old and has " +
-          mileage.toLocaleString() +
-          " miles, the model flags a higher chance of MOT failure. " +
-          "Consider booking a service or addressing obvious issues (tyres below limit, dashboard warning lights, " +
-          "brakes, exhaust and corrosion) before you go for the test.";
-      }
-
-      let extra = "";
-
-      if (fuelType === "diesel") {
-        extra +=
-          " Diesel vehicles can be more sensitive on emissions during MOT, " +
-          "so make sure there are no visible smoke issues and the engine is running smoothly. ";
-      } else if (fuelType === "electric") {
-        extra +=
-          " Electric cars avoid some traditional MOT issues (emissions), " +
-          "but tyres, suspension and brakes are still key check points. ";
-      }
-
-      if (previousFails > 0) {
-        extra +=
-          "Because this vehicle has previously failed MOT " +
-          previousFails +
-          " time(s), the model nudges risk upwards. Make sure previous advisories or fail points have been properly fixed.";
-      }
-
-      return baseText + " " + extra;
-    }
-
-    // Number plate lookup handler (dummy backend)
-    lookupBtn.addEventListener("click", async () => {
-      const plateRaw = plateInput.value.trim();
-      lookupStatus.textContent = "";
-      errorContainer.textContent = "";
-
-      if (!plateRaw) {
-        lookupStatus.textContent = "Please enter a number plate (e.g. AB12 CDE).";
-        return;
-      }
-
-      lookupBtn.disabled = true;
-      lookupStatus.textContent = "Looking up MOT history (dummy data)...";
-
-      try {
-        const res = await fetch("/api/mot-history", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ registration: plateRaw }),
-        });
-
-        if (!res.ok) {
-          throw new Error("Lookup failed with status " + res.status);
-        }
-
-        const data = await res.json();
-
-        const currentYear = new Date().getFullYear();
-        const ageYears = data.first_used_year
-          ? Math.max(0, currentYear - data.first_used_year)
-          : "";
-
-        if (ageYears !== "") {
-          document.getElementById("vehicle_age").value = ageYears.toFixed(1);
-        }
-        if (typeof data.latest_mileage === "number") {
-          document.getElementById("mileage").value = data.latest_mileage;
-        }
-        if (typeof data.previous_fails === "number") {
-          document.getElementById("previous_fails").value = data.previous_fails;
-        }
-
-        const make = data.make || "Unknown make";
-        const model = data.model || "Unknown model";
-        const expiry = data.mot_expiry || "Unknown expiry";
-
-        lookupStatus.innerHTML =
-          "Dummy MOT data: <strong>" +
-          make +
-          " " +
-          model +
-          "</strong> · MOT expiry: <strong>" +
-          expiry +
-          "</strong> · Last mileage: <strong>" +
-          (data.latest_mileage
-            ? data.latest_mileage.toLocaleString()
-            : "n/a") +
-          "</strong> · Previous fails: <strong>" +
-          (data.previous_fails ?? "n/a") +
-          "</strong>.";
-      } catch (err) {
-        console.error(err);
-        lookupStatus.textContent =
-          "Could not fetch MOT history. Please try again.";
-      } finally {
-        lookupBtn.disabled = false;
-      }
-    });
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      resultContainer.innerHTML = "";
-      errorContainer.textContent = "";
-      submitBtn.disabled = true;
 
-      const age = parseFloat(document.getElementById("vehicle_age").value);
+      const vrmRaw = document.getElementById("vrm").value || "";
+      const vehicle_age = parseFloat(
+        document.getElementById("vehicle_age").value
+      );
       const mileage = parseFloat(document.getElementById("mileage").value);
-      const fuelType = document.getElementById("fuel_type").value;
-      const previousFailsRaw = document.getElementById("previous_fails").value;
-      const previousFails = previousFailsRaw ? parseInt(previousFailsRaw, 10) : 0;
 
-      if (isNaN(age) || isNaN(mileage)) {
-        errorContainer.textContent = "Please enter valid numbers for age and mileage.";
-        submitBtn.disabled = false;
-        return;
-      }
+      const vrm = vrmRaw.trim();
+
+      resultContainer.innerHTML = "";
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Calculating...";
 
       try {
-        const res = await fetch("/api/predict", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            vehicle_age: age,
-            mileage,
-            fuel_type: fuelType,
-            previous_fails: previousFails,
+        // Call both APIs in parallel
+        const [predictRes, historyRes] = await Promise.all([
+          fetch("/api/predict", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ vehicle_age, mileage }),
           }),
-        });
+          fetch("/api/mot-history", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ vrm }),
+          }),
+        ]);
 
-        if (!res.ok) {
-          throw new Error("Server error: " + res.status);
+        if (!predictRes.ok) {
+          throw new Error("Prediction API failed with status " + predictRes.status);
+        }
+        if (!historyRes.ok) {
+          throw new Error("MOT history API failed with status " + historyRes.status);
         }
 
-        const data = await res.json();
+        const predictJson = await predictRes.json();
+        const historyJson = await historyRes.json();
 
-        const explanationsRaw = Array.isArray(data.explanations) ? data.explanations : [];
-        const explanationsTop = explanationsRaw.slice(0, 4);
+        const percent = predictJson.probability_percent ?? 0;
+        const historyRecords = historyJson.records ?? [];
 
-        let score;
-        if (typeof data.score === "number") {
-          score = Math.max(0, Math.min(100, Math.round(data.score)));
+        const confidenceLabel =
+          percent >= 75
+            ? "High chance of passing (demo only)."
+            : percent >= 50
+            ? "Moderate chance of passing (demo only)."
+            : "Low chance of passing – car may need attention (demo only).";
+
+        let historyHtml = "";
+        if (historyRecords.length === 0) {
+          historyHtml =
+            "<p class='small-note'>No dummy MOT history found for this VRM. Showing an empty history for now.</p>";
         } else {
-          const prediction =
-            typeof data.prediction === "number" ? data.prediction : 0;
-          score = Math.max(0, Math.min(100, Math.round(prediction * 100)));
-        }
-
-        const band = getBand(score);
-        const label = getLabel(score);
-        const explanation = buildExplanation(
-          score,
-          age,
-          mileage,
-          fuelType,
-          previousFails
-        );
-
-        const fuelLabel =
-          fuelType.charAt(0).toUpperCase() + fuelType.slice(1).toLowerCase();
-
-        // Build "Why this score?" HTML from explanations
-        let insightsHtml = "";
-        if (explanationsTop.length > 0) {
-          insightsHtml += `
-            <div class="explanation" style="margin-top:8px;">
-              <strong>Why this score?</strong><br />
-              <ul style="margin:6px 0 0 18px; padding:0; list-style:disc; font-size:0.8rem;">
-          `;
-
-          explanationsTop.forEach((item) => {
-            const labelText = item.label || item.feature_key || "This factor";
-            const strength = item.strength || "small";
-            const dirRaw = item.direction || "neutral";
-
-            let dirText;
-            if (dirRaw === "increase") {
-              dirText = "increases";
-            } else if (dirRaw === "decrease") {
-              dirText = "reduces";
-            } else {
-              dirText = "has little effect on";
-            }
-
-            let strengthText;
-            if (strength === "strong") {
-              strengthText = "strong impact";
-            } else if (strength === "moderate") {
-              strengthText = "moderate impact";
-            } else {
-              strengthText = "small impact";
-            }
-
-            insightsHtml += `
-              <li>
-                <strong>${labelText}</strong> – ${dirText} the estimated failure risk
-                (<span>${strengthText}</span>).
-              </li>
-            `;
-          });
-
-          insightsHtml += `
-              </ul>
-            </div>
-          `;
+          historyHtml =
+            "<ul class='history-list'>" +
+            historyRecords
+              .map((r) => {
+                const isPass = r.result === "PASS";
+                const resultClass = isPass
+                  ? "history-result-pass"
+                  : "history-result-fail";
+                const resultLabel = isPass ? "PASS" : "FAIL";
+                const advisory =
+                  r.advisory && r.advisory.trim().length
+                    ? `<div class="advisory">Advisory: ${r.advisory}</div>`
+                    : "";
+                return `
+                  <li class="history-item">
+                    <div class="history-main">
+                      <div>${r.test_date}</div>
+                      <div class="history-date">Recorded mileage: ${r.mileage.toLocaleString()} miles</div>
+                      ${advisory}
+                    </div>
+                    <div class="${resultClass}">${resultLabel}</div>
+                  </li>
+                `;
+              })
+              .join("") +
+            "</ul>";
         }
 
         resultContainer.innerHTML = `
-          <div class="result-box">
-            <div class="result-headline">
-              Estimated MOT failure risk: ${score}% (${label})
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Predicted MOT pass chance</div>
+              <div class="card-tag">Model demo</div>
             </div>
-            <div class="result-subtitle">
-              This is an early beta estimate based on UK-style MOT patterns. It is not official DVSA advice.
+            <div class="probability">${percent}%</div>
+            <div class="probability-label">${confidenceLabel}</div>
+            <p class="small-note">
+              This is based on a simple demo model using only age + mileage.
+              Not financial or mechanical advice.
+            </p>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Dummy MOT history for ${historyJson.vrm || "this vehicle"}</div>
+              <div class="card-tag">Fake data · For UI only</div>
             </div>
-
-            <div class="risk-meter-wrapper">
-              <div class="risk-meter-circle">
-                <div class="risk-meter-inner">
-                  <div class="risk-score">${score}%</div>
-                  <div class="risk-label">${band} RISK</div>
-                </div>
-              </div>
-
-              <div class="risk-bands">
-                <span><span class="risk-dot low"></span>0–39% Low</span>
-                <span><span class="risk-dot med"></span>40–69% Medium</span>
-                <span><span class="risk-dot high"></span>70–100% High</span>
-              </div>
-            </div>
-
-            <div class="extra-factors">
-              Fuel type: <strong>${fuelLabel}</strong>${
-                previousFails > 0
-                  ? ` · Previous MOT fails: <strong>${previousFails}</strong>`
-                  : " · Previous MOT fails: <strong>None recorded</strong>"
-              }
-            </div>
-
-            <div class="explanation">
-              <strong>What this means for your MOT:</strong><br />
-              ${explanation}
-            </div>
-
-            ${insightsHtml}
-
-            <br />
-            <button onclick="downloadPdf()"
-              style="
-                width: 100%;
-                padding: 10px 14px;
-                margin-top: 12px;
-                border-radius: 999px;
-                border: none;
-                background: linear-gradient(to right, #3b82f6, #06b6d4);
-                color: #020617;
-                font-weight: 600;
-                font-size: 1rem;
-                cursor: pointer;
-              ">
-              Download MOT Report (PDF)
-            </button>
-
-            <button type="button" onclick="copyShareLink()"
-              style="
-                width: 100%;
-                padding: 9px 14px;
-                margin-top: 8px;
-                border-radius: 999px;
-                border: 1px solid #38bdf8;
-                background: transparent;
-                color: #e5e7eb;
-                font-weight: 500;
-                font-size: 0.95rem;
-                cursor: pointer;
-              ">
-              Copy share link
-            </button>
+            ${historyHtml}
+            <p class="small-note">
+              These MOT records are <strong>dummy examples</strong>. Once you register your company,
+              we will replace this with a real DVSA MOT history API.
+            </p>
           </div>
         `;
       } catch (err) {
         console.error(err);
-        errorContainer.textContent =
-          "Something went wrong while predicting. Please try again in a moment.";
+        resultContainer.innerHTML = `
+          <div class="error">
+            Something went wrong. Please try again in a moment. (Demo mode)
+          </div>
+        `;
       } finally {
         submitBtn.disabled = false;
+        submitBtn.textContent = "Get MOT prediction + dummy history";
       }
     });
-
-    // PDF generator using jsPDF, reading from visible result box
-    function downloadPdf() {
-      const resultBox = document.querySelector(".result-box");
-      if (!resultBox) {
-        alert("Please run a prediction first.");
-        return;
-      }
-
-      if (!window.jspdf || !window.jspdf.jsPDF) {
-        alert("PDF library not loaded yet. Please try again.");
-        return;
-      }
-
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF({ unit: "pt", format: "a4" });
-
-      const now = new Date().toLocaleString();
-      const plate = (document.getElementById("plate").value || "Not provided").toUpperCase();
-
-      const age = document.getElementById("vehicle_age").value || "-";
-      const mileage = document.getElementById("mileage").value || "-";
-      const fuel = document.getElementById("fuel_type").value || "-";
-      const prevFails = document.getElementById("previous_fails").value || "-";
-
-      const resultText = resultBox.innerText;
-
-      pdf.setFont("Helvetica", "normal");
-      pdf.setFontSize(18);
-      pdf.text("Autodun MOT Risk Report", 40, 50);
-
-      pdf.setFontSize(11);
-      pdf.text(`Generated: ${now}`, 40, 70);
-      pdf.text(`Number Plate: ${plate}`, 40, 88);
-
-      pdf.setFontSize(10);
-      pdf.text(`Vehicle age (years): ${age}`, 40, 110);
-      pdf.text(`Current mileage: ${mileage}`, 40, 126);
-      pdf.text(`Fuel type: ${fuel}`, 40, 142);
-      pdf.text(`Previous MOT fails: ${prevFails}`, 40, 158);
-
-      pdf.setFontSize(11);
-      pdf.text("Prediction details:", 40, 184);
-
-      pdf.setFontSize(10);
-      pdf.text(resultText, 40, 200, { maxWidth: 520 });
-
-      pdf.save(`MOT_Report_${plate || "vehicle"}.pdf`);
-    }
-
-    // Copy deep link with current inputs
-    function copyShareLink() {
-      const url = new URL(window.location.href);
-
-      const age = document.getElementById("vehicle_age").value;
-      const mileage = document.getElementById("mileage").value;
-      const fuel = document.getElementById("fuel_type").value;
-      const prevFails = document.getElementById("previous_fails").value;
-      const plate = document.getElementById("plate").value.trim();
-
-      if (age) url.searchParams.set("age", age);
-      if (mileage) url.searchParams.set("mileage", mileage);
-      if (fuel) url.searchParams.set("fuel", fuel);
-      if (prevFails) url.searchParams.set("fails", prevFails);
-      if (plate) url.searchParams.set("plate", plate);
-
-      const link = url.toString();
-
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard
-          .writeText(link)
-          .then(() => {
-            alert("Share link copied to clipboard.");
-          })
-          .catch(() => {
-            alert("Could not copy automatically. Here is your link:\n" + link);
-          });
-      } else {
-        // Fallback
-        prompt("Copy this link:", link);
-      }
-    }
-
-    // When opening a shared link, prefill form & auto-predict
-    function initFromUrl() {
-      try {
-        const url = new URL(window.location.href);
-
-        const age = url.searchParams.get("age");
-        const mileage = url.searchParams.get("mileage");
-        const fuel = url.searchParams.get("fuel");
-        const fails = url.searchParams.get("fails");
-        const plate = url.searchParams.get("plate");
-
-        if (plate) document.getElementById("plate").value = plate;
-        if (age) document.getElementById("vehicle_age").value = age;
-        if (mileage) document.getElementById("mileage").value = mileage;
-        if (fuel) document.getElementById("fuel_type").value = fuel;
-        if (fails) document.getElementById("previous_fails").value = fails;
-
-        if (age && mileage) {
-          setTimeout(() => {
-            form.dispatchEvent(new Event("submit"));
-          }, 200);
-        }
-      } catch (err) {
-        console.error("URL init failed", err);
-      }
-    }
-
-    // Run on load
-    initFromUrl();
   </script>
 </body>
 </html>
