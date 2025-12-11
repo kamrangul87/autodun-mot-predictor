@@ -1,0 +1,7 @@
+make,model,first_registration_year,test_year,mileage,fuel_type,region,result
+Toyota,Yaris,2014,2024,89000,petrol,NW,pass
+Ford,Focus,2012,2024,120000,diesel,SE,fail
+Volkswagen,Golf,2016,2024,65000,petrol,NE,pass
+Vauxhall,Corsa,2010,2024,135000,petrol,SW,fail
+Nissan,Qashqai,2015,2024,99000,diesel,MW,pass
+BMW,3 Series,2013,2024,110000,diesel,SE,fail

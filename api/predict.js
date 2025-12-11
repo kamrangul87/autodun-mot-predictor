@@ -1,7 +1,6 @@
-// pages/api/predict.js
+// api/predict.js  (or pages/api/predict.js)
 
-// Real MOT predictor using a simple logistic regression model.
-// v2: coefficients are loaded from ml/models/mot_model_v2.json
+// MOT predictor using logistic regression coefficients from ml/models/mot_model_v2.json
 
 import fs from "fs";
 import path from "path";
@@ -19,8 +18,9 @@ try {
   model = JSON.parse(raw);
   console.log("[MOT] Loaded model v2 from", modelPath);
 } catch (err) {
-  console.error("[MOT] Could not load mot_model_v2.json, falling back to hard-coded v1:", err);
-  // Hard-coded fallback (same as your original constants)
+  console.error("[MOT] Could not load mot_model_v2.json, falling back to hard-coded defaults:", err);
+
+  // Fallback to simple hand-tuned model
   model = {
     version: "1-fallback",
     intercept: 3.0,
@@ -30,8 +30,16 @@ try {
       fuel_type_diesel: 0.05,
       fuel_type_hybrid: -0.03,
       fuel_type_electric: -0.05,
-      previous_fails: 0.08
-    }
+      previous_fails: 0.08,
+    },
+    features: [
+      "vehicle_age",
+      "mileage",
+      "fuel_type_diesel",
+      "fuel_type_hybrid",
+      "fuel_type_electric",
+      "previous_fails",
+    ],
   };
 }
 
@@ -44,13 +52,12 @@ export default function handler(req, res) {
     vehicle_age,
     mileage,
     fuel_type,
-    previous_fails
+    previous_fails,
   } = req.body || {};
 
-  // ---- Basic validation ----
   if (vehicle_age == null || mileage == null) {
     return res.status(400).json({
-      error: "Missing required fields: vehicle_age and mileage"
+      error: "Missing required fields: vehicle_age and mileage",
     });
   }
 
@@ -59,56 +66,57 @@ export default function handler(req, res) {
 
   if (Number.isNaN(ageNum) || Number.isNaN(mileageNum)) {
     return res.status(400).json({
-      error: "vehicle_age and mileage must be numbers"
+      error: "vehicle_age and mileage must be numbers",
     });
   }
 
   const fuel = (fuel_type || "").toLowerCase();
   const failsNum = Number(previous_fails || 0);
 
-  // ---- Build feature vector for the model ----
+  // Build feature vector matching the model
   const features = {
     vehicle_age: ageNum,
     mileage: mileageNum,
     fuel_type_diesel: fuel === "diesel" ? 1 : 0,
     fuel_type_hybrid: fuel === "hybrid" ? 1 : 0,
     fuel_type_electric: fuel === "electric" ? 1 : 0,
-    previous_fails: Number.isNaN(failsNum) ? 0 : failsNum
+    previous_fails: Number.isNaN(failsNum) ? 0 : failsNum,
   };
 
-  // ---- Compute logistic regression score from JSON model ----
   let z = model.intercept || 0;
-
   const coefs = model.coefficients || {};
+
   for (const [name, value] of Object.entries(features)) {
     const w = typeof coefs[name] === "number" ? coefs[name] : 0;
     z += w * value;
   }
 
-  const passProb = logistic(z); // probability of PASS (same meaning as before)
-  const passProbClamped = Math.max(0, Math.min(1, passProb));
+  // Our trained model is for probability of FAIL (target y=1 = fail)
+  const failProb = logistic(z);
+  const failProbClamped = Math.max(0, Math.min(1, failProb));
+  const score = Math.round(failProbClamped * 100); // 0–100 failure risk
 
-  // For UI we keep "score" as a 0–100 index (same behaviour as before)
-  const score = Math.round(passProbClamped * 100);
-
-  // Risk level logic based on pass probability (same as your original code)
+  // Risk bands based on failure probability
   let risk = "low";
-  if (passProbClamped < 0.5) {
+  if (failProbClamped >= 0.7) {
     risk = "high";
-  } else if (passProbClamped < 0.7) {
+  } else if (failProbClamped >= 0.4) {
     risk = "medium";
   }
 
   return res.status(200).json({
     model_version: model.version || "2",
-    pass_probability: passProbClamped,
+    // For UI compatibility:
+    prediction: failProbClamped,          // same as failure risk
+    fail_probability: failProbClamped,
+    pass_probability: 1 - failProbClamped,
     risk_level: risk,
-    score,
+    score,                                // 0–100 failure risk
     inputs: {
       vehicle_age: ageNum,
       mileage: mileageNum,
       fuel_type: fuel || "not_provided",
-      previous_fails: features.previous_fails
-    }
+      previous_fails: features.previous_fails,
+    },
   });
 }
