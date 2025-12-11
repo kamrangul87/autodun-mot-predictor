@@ -1,0 +1,20 @@
+{
+  "version": "2",
+  "intercept": 3.0,
+  "coefficients": {
+    "vehicle_age": -0.25,
+    "mileage": -0.00001,
+    "fuel_type_diesel": 0.05,
+    "fuel_type_hybrid": -0.03,
+    "fuel_type_electric": -0.05,
+    "previous_fails": 0.08
+  },
+  "features": [
+    "vehicle_age",
+    "mileage",
+    "fuel_type_diesel",
+    "fuel_type_hybrid",
+    "fuel_type_electric",
+    "previous_fails"
+  ]
+}
