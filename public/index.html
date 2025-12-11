@@ -528,8 +528,7 @@
         const fuelLabel =
           fuelType.charAt(0).toUpperCase() + fuelType.slice(1).toLowerCase();
 
-        // Build "Why this score?" HTML from explanations
-        let insightsHtml = "";
+             let insightsHtml = "";
         if (explanationsTop.length > 0) {
           insightsHtml += `
             <div class="explanation" style="margin-top:8px;">
@@ -539,17 +538,30 @@
 
           explanationsTop.forEach((item) => {
             const labelText = item.label || item.feature_key || "This factor";
-            const dir = item.direction || "has little effect";
             const strength = item.strength || "small";
+            const dirRaw = item.direction || "neutral";
 
-            let strengthText = "";
-            if (strength === "strong") strengthText = "strong impact";
-            else if (strength === "moderate") strengthText = "moderate impact";
-            else strengthText = "small impact";
+            let dirText;
+            if (dirRaw === "increase") {
+              dirText = "increases";
+            } else if (dirRaw === "decrease") {
+              dirText = "reduces";
+            } else {
+              dirText = "has little effect on";
+            }
+
+            let strengthText;
+            if (strength === "strong") {
+              strengthText = "strong impact";
+            } else if (strength === "moderate") {
+              strengthText = "moderate impact";
+            } else {
+              strengthText = "small impact";
+            }
 
             insightsHtml += `
               <li>
-                <strong>${labelText}</strong> – ${dir} the estimated failure risk
+                <strong>${labelText}</strong> – ${dirText} the estimated failure risk
                 (<span>${strengthText}</span>).
               </li>
             `;
@@ -560,6 +572,7 @@
             </div>
           `;
         }
+
 
         resultContainer.innerHTML = `
           <div class="result-box">
