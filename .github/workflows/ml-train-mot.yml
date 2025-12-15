@@ -1,10 +1,15 @@
-name: MOT ML Train v1
+name: MOT ML Train v2
 
 on:
+  # Manually run from GitHub Actions tab
   workflow_dispatch: {}
 
+  # Optional: run automatically every Monday at 02:30 UTC
+  schedule:
+    - cron: "30 2 * * 1"
+
 jobs:
-  train-mot-model:
+  train-mot-model-v2:
     runs-on: ubuntu-latest
 
     steps:
@@ -21,11 +26,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r ml/requirements.txt
 
-      - name: Run clean_data script
-        run: python ml/scripts/clean_data.py
+      - name: Train MOT model v2
+        run: python ml/scripts/train_mot_v2.py
 
-      - name: Run train_model script
-        run: python ml/scripts/train_model.py
+      - name: Show generated model file
+        run: |
+          echo "Contents of ml/models:"
+          ls -R ml/models
+          echo "Preview of mot_model_v2.json:"
+          head -n 40 ml/models/mot_model_v2.json || cat ml/models/mot_model_v2.json
 
-      - name: List output files
-        run: ls -R
+      - name: Upload mot_model_v2.json as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mot-model-v2-json
+          path: ml/models/mot_model_v2.json
