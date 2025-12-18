@@ -398,70 +398,101 @@
       return baseText + " " + extra;
     }
 
-    // Number plate lookup handler (dummy backend)
+    function normalizeVrm(input) {
+      return (input || "").trim().replace(/\s+/g, "").toUpperCase();
+    }
+
+    function pickFuelSelectValue(dvsaFuelType) {
+      const f = (dvsaFuelType || "").toLowerCase();
+      if (f.includes("petrol")) return "petrol";
+      if (f.includes("diesel")) return "diesel";
+      if (f.includes("electric")) return "electric";
+      if (f.includes("hybrid")) return "hybrid";
+      return "";
+    }
+
+    // ✅ Number plate lookup handler (REAL DVSA via your backend GET /api/mot-history?vrm=)
     lookupBtn.addEventListener("click", async () => {
-      const plateRaw = plateInput.value.trim();
+      const vrm = normalizeVrm(plateInput.value);
       lookupStatus.textContent = "";
       errorContainer.textContent = "";
 
-      if (!plateRaw) {
+      if (!vrm) {
         lookupStatus.textContent = "Please enter a number plate (e.g. AB12 CDE).";
         return;
       }
 
       lookupBtn.disabled = true;
-      lookupStatus.textContent = "Looking up MOT history (dummy data)...";
+      lookupStatus.textContent = "Fetching MOT history...";
 
       try {
-        const res = await fetch("/api/mot-history", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ registration: plateRaw }),
+        const res = await fetch(`/api/mot-history?vrm=${encodeURIComponent(vrm)}`, {
+          method: "GET",
+          headers: { Accept: "application/json" },
         });
 
+        const data = await res.json().catch(() => null);
+
         if (!res.ok) {
-          throw new Error("Lookup failed with status " + res.status);
+          const msg =
+            data?.dvsa_response?.errorMessage ||
+            data?.message ||
+            data?.error ||
+            `Lookup failed (status ${res.status})`;
+          throw new Error(msg);
         }
 
-        const data = await res.json();
-
-        const currentYear = new Date().getFullYear();
-        const ageYears = data.first_used_year
-          ? Math.max(0, currentYear - data.first_used_year)
-          : "";
-
-        if (ageYears !== "") {
-          document.getElementById("vehicle_age").value = ageYears.toFixed(1);
-        }
-        if (typeof data.latest_mileage === "number") {
-          document.getElementById("mileage").value = data.latest_mileage;
-        }
-        if (typeof data.previous_fails === "number") {
-          document.getElementById("previous_fails").value = data.previous_fails;
+        if (!data || !data.registration || !Array.isArray(data.motTests)) {
+          throw new Error("Invalid MOT data returned");
         }
 
+        // Sort tests newest first (defensive)
+        const tests = data.motTests
+          .slice()
+          .sort((a, b) => new Date(b.completedDate || 0) - new Date(a.completedDate || 0));
+
+        const latest = tests[0] || null;
+
+        // Age from firstUsedDate
+        if (data.firstUsedDate) {
+          const firstUsed = new Date(data.firstUsedDate);
+          const ageYears = (Date.now() - firstUsed.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+          document.getElementById("vehicle_age").value = Math.max(0, ageYears).toFixed(1);
+        }
+
+        // Mileage from latest odometerValue
+        if (latest?.odometerValue != null) {
+          const miles = Number(latest.odometerValue);
+          if (!Number.isNaN(miles)) {
+            document.getElementById("mileage").value = miles;
+          }
+        }
+
+        // Previous fails count (FAILED results)
+        const failCount = tests.filter((t) => t.testResult === "FAILED").length;
+        document.getElementById("previous_fails").value = String(failCount);
+
+        // Fuel type mapping
+        const fuelValue = pickFuelSelectValue(data.fuelType);
+        if (fuelValue) document.getElementById("fuel_type").value = fuelValue;
+
+        // UI status line
         const make = data.make || "Unknown make";
         const model = data.model || "Unknown model";
-        const expiry = data.mot_expiry || "Unknown expiry";
+        const expiry = latest?.expiryDate || "Unknown expiry";
+        const lastMileage = latest?.odometerValue
+          ? Number(latest.odometerValue).toLocaleString()
+          : "n/a";
 
         lookupStatus.innerHTML =
-          "Dummy MOT data: <strong>" +
-          make +
-          " " +
-          model +
-          "</strong> · MOT expiry: <strong>" +
-          expiry +
-          "</strong> · Last mileage: <strong>" +
-          (data.latest_mileage
-            ? data.latest_mileage.toLocaleString()
-            : "n/a") +
-          "</strong> · Previous fails: <strong>" +
-          (data.previous_fails ?? "n/a") +
-          "</strong>.";
+          `DVSA MOT data: <strong>${make} ${model}</strong>` +
+          ` · MOT expiry: <strong>${expiry}</strong>` +
+          ` · Last mileage: <strong>${lastMileage}</strong>` +
+          ` · Previous fails: <strong>${failCount}</strong>.`;
       } catch (err) {
         console.error(err);
         lookupStatus.textContent =
-          "Could not fetch MOT history. Please try again.";
+          `Could not fetch MOT history: ${err?.message || "Please try again."}`;
       } finally {
         lookupBtn.disabled = false;
       }
@@ -510,23 +541,15 @@
         if (typeof data.score === "number") {
           score = Math.max(0, Math.min(100, Math.round(data.score)));
         } else {
-          const prediction =
-            typeof data.prediction === "number" ? data.prediction : 0;
+          const prediction = typeof data.prediction === "number" ? data.prediction : 0;
           score = Math.max(0, Math.min(100, Math.round(prediction * 100)));
         }
 
         const band = getBand(score);
         const label = getLabel(score);
-        const explanation = buildExplanation(
-          score,
-          age,
-          mileage,
-          fuelType,
-          previousFails
-        );
+        const explanation = buildExplanation(score, age, mileage, fuelType, previousFails);
 
-        const fuelLabel =
-          fuelType.charAt(0).toUpperCase() + fuelType.slice(1).toLowerCase();
+        const fuelLabel = fuelType.charAt(0).toUpperCase() + fuelType.slice(1).toLowerCase();
 
         // Build "Why this score?" HTML from explanations
         let insightsHtml = "";
@@ -543,22 +566,14 @@
             const dirRaw = item.direction || "neutral";
 
             let dirText;
-            if (dirRaw === "increase") {
-              dirText = "increases";
-            } else if (dirRaw === "decrease") {
-              dirText = "reduces";
-            } else {
-              dirText = "has little effect on";
-            }
+            if (dirRaw === "increase") dirText = "increases";
+            else if (dirRaw === "decrease") dirText = "reduces";
+            else dirText = "has little effect on";
 
             let strengthText;
-            if (strength === "strong") {
-              strengthText = "strong impact";
-            } else if (strength === "moderate") {
-              strengthText = "moderate impact";
-            } else {
-              strengthText = "small impact";
-            }
+            if (strength === "strong") strengthText = "strong impact";
+            else if (strength === "moderate") strengthText = "moderate impact";
+            else strengthText = "small impact";
 
             insightsHtml += `
               <li>
