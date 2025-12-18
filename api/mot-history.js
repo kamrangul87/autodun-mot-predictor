@@ -1,8 +1,4 @@
 // api/mot-history.js
-// Autodun MOT Predictor — DVSA MOT History (LIVE) proxy for Vercel
-// Uses EXACT env vars:
-// DVSA_API_BASE, DVSA_TOKEN_URL, DVSA_CLIENT_ID, DVSA_CLIENT_SECRET, DVSA_SCOPE, DVSA_API_KEY
-
 let cachedToken = null;
 let cachedTokenExpiryMs = 0;
 
@@ -49,9 +45,7 @@ async function getAccessToken() {
   const scope = process.env.DVSA_SCOPE || "";
 
   if (!tokenUrl || !clientId || !clientSecret) {
-    throw new Error(
-      "Missing DVSA auth env vars: DVSA_TOKEN_URL, DVSA_CLIENT_ID, DVSA_CLIENT_SECRET"
-    );
+    throw new Error("Missing DVSA auth env vars: DVSA_TOKEN_URL, DVSA_CLIENT_ID, DVSA_CLIENT_SECRET");
   }
 
   const form = new URLSearchParams();
@@ -68,11 +62,7 @@ async function getAccessToken() {
 
   const txt = await resp.text();
   let j;
-  try {
-    j = JSON.parse(txt);
-  } catch {
-    j = null;
-  }
+  try { j = JSON.parse(txt); } catch { j = null; }
 
   if (!resp.ok || !j?.access_token || !j?.expires_in) {
     throw new Error(`DVSA token failed (status ${resp.status})`);
@@ -83,14 +73,22 @@ async function getAccessToken() {
   return cachedToken;
 }
 
-function mapDvsaError(status) {
+function mapDvsaError(status, upstreamText) {
   if (status === 400) return { status: 400, message: "Bad request to DVSA." };
-  if (status === 401) return { status: 502, message: "DVSA auth rejected (token/API key)." };
-  if (status === 403) return { status: 502, message: "DVSA forbidden (access/scopes not permitted)." };
+  if (status === 401) return { status: 502, message: "DVSA auth failed (check token/API key)." };
+  if (status === 403) return { status: 502, message: "DVSA forbidden (API key/scope/endpoint mismatch)." };
   if (status === 404) return { status: 404, message: "No MOT history found for this VRM." };
   if (status === 429) return { status: 429, message: "DVSA rate limit reached. Retry shortly." };
   if (status >= 500) return { status: 502, message: "DVSA service error. Retry shortly." };
   return { status: 502, message: "Unexpected DVSA response." };
+}
+
+async function dvsaFetch(url, opts) {
+  const r = await fetch(url, opts);
+  const text = await r.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+  return { ok: r.ok, status: r.status, text, data };
 }
 
 export default async function handler(req, res) {
@@ -101,7 +99,6 @@ export default async function handler(req, res) {
       return sendJson(res, 405, { error: "Method not allowed" });
     }
 
-    // VRM input
     let vrm = "";
     if (method === "GET") {
       vrm = normalizeVrm(req.query?.vrm);
@@ -111,56 +108,44 @@ export default async function handler(req, res) {
       vrm = normalizeVrm(body.vrm || body.registration);
     }
 
-    if (!isValidVrm(vrm)) {
-      return sendJson(res, 400, { error: "Invalid VRM. Example: ML58FOU" });
-    }
+    if (!isValidVrm(vrm)) return sendJson(res, 400, { error: `Invalid VRM. Example: ML58FOU` });
 
-    // Base + endpoint (DVSA Trade MOT History)
     const apiBase = String(process.env.DVSA_API_BASE || "").replace(/\/+$/, "");
     if (!apiBase) throw new Error("Missing DVSA_API_BASE");
 
-    // If your 200 OK is already coming from this standard path, keep it.
-    // If your DVSA account uses a different path, change ONLY this line.
-    const url = `${apiBase}/trade/vehicles/mot-tests`;
-
-    // Auth
+    const apiKey = process.env.DVSA_API_KEY || "";
     const token = await getAccessToken();
 
-    // Some DVSA setups require x-api-key in addition to Bearer token
-    const apiKey = process.env.DVSA_API_KEY;
-
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
+    // IMPORTANT: send BOTH headers (many DVSA setups require API key + bearer)
+    const commonHeaders = {
       Accept: "application/json",
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
     };
+    if (apiKey) commonHeaders["x-api-key"] = apiKey;
 
-    if (apiKey) headers["x-api-key"] = apiKey;
+    // Strategy A (often required): GET with query param
+    const getUrl = `${apiBase}/trade/vehicles/mot-tests?registration=${encodeURIComponent(vrm)}`;
+    const a = await dvsaFetch(getUrl, { method: "GET", headers: commonHeaders });
 
-    const dvsaResp = await fetch(url, {
+    if (a.ok) return sendJson(res, 200, a.data);
+
+    // Strategy B: POST with JSON body
+    const postUrl = `${apiBase}/trade/vehicles/mot-tests`;
+    const b = await dvsaFetch(postUrl, {
       method: "POST",
-      headers,
+      headers: commonHeaders,
       body: JSON.stringify({ registration: vrm }),
     });
 
-    const text = await dvsaResp.text();
+    if (b.ok) return sendJson(res, 200, b.data);
 
-    let data = null;
-    try {
-      data = text ? JSON.parse(text) : null;
-    } catch {
-      data = { raw: text };
-    }
-
-    if (!dvsaResp.ok) {
-      const mapped = mapDvsaError(dvsaResp.status);
-      return sendJson(res, mapped.status, {
-        error: mapped.message,
-        dvsa_status: dvsaResp.status,
-      });
-    }
-
-    return sendJson(res, 200, data);
+    // If both failed, return the best mapped error (prefer the later one)
+    const mapped = mapDvsaError(b.status || a.status, b.text || a.text);
+    return sendJson(res, mapped.status, {
+      error: mapped.message,
+      dvsa_status: b.status || a.status,
+    });
   } catch (err) {
     return sendJson(res, 500, {
       error: "Server error in MOT history proxy",
