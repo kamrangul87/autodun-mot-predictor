@@ -73,16 +73,6 @@ async function getAccessToken() {
   return cachedToken;
 }
 
-function mapDvsaError(status, upstreamText) {
-  if (status === 400) return { status: 400, message: "Bad request to DVSA." };
-  if (status === 401) return { status: 502, message: "DVSA auth failed (check token/API key)." };
-  if (status === 403) return { status: 502, message: "DVSA forbidden (API key/scope/endpoint mismatch)." };
-  if (status === 404) return { status: 404, message: "No MOT history found for this VRM." };
-  if (status === 429) return { status: 429, message: "DVSA rate limit reached. Retry shortly." };
-  if (status >= 500) return { status: 502, message: "DVSA service error. Retry shortly." };
-  return { status: 502, message: "Unexpected DVSA response." };
-}
-
 async function dvsaFetch(url, opts) {
   const r = await fetch(url, opts);
   const text = await r.text();
@@ -108,7 +98,7 @@ export default async function handler(req, res) {
       vrm = normalizeVrm(body.vrm || body.registration);
     }
 
-    if (!isValidVrm(vrm)) return sendJson(res, 400, { error: `Invalid VRM. Example: ML58FOU` });
+    if (!isValidVrm(vrm)) return sendJson(res, 400, { error: "Invalid VRM. Example: ML58FOU" });
 
     const apiBase = String(process.env.DVSA_API_BASE || "").replace(/\/+$/, "");
     if (!apiBase) throw new Error("Missing DVSA_API_BASE");
@@ -116,35 +106,55 @@ export default async function handler(req, res) {
     const apiKey = process.env.DVSA_API_KEY || "";
     const token = await getAccessToken();
 
-    // IMPORTANT: send BOTH headers (many DVSA setups require API key + bearer)
-    const commonHeaders = {
+    const baseHeaders = {
       Accept: "application/json",
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
     };
-    if (apiKey) commonHeaders["x-api-key"] = apiKey;
 
-    // Strategy A (often required): GET with query param
+    // Send API key in both common header names (safe; headers are case-insensitive)
+    const keyHeaders = { ...baseHeaders };
+    if (apiKey) {
+      keyHeaders["x-api-key"] = apiKey;
+      keyHeaders["api-key"] = apiKey;
+    }
+
+    // Try 1: Bearer + API key (most strict gateways)
+    const bothHeaders = { ...keyHeaders, Authorization: `Bearer ${token}` };
+
     const getUrl = `${apiBase}/trade/vehicles/mot-tests?registration=${encodeURIComponent(vrm)}`;
-    const a = await dvsaFetch(getUrl, { method: "GET", headers: commonHeaders });
+    let r1 = await dvsaFetch(getUrl, { method: "GET", headers: bothHeaders });
 
-    if (a.ok) return sendJson(res, 200, a.data);
+    if (!r1.ok && r1.status === 403) {
+      // Try 2: API key ONLY (common reason ReqBin works but code fails)
+      r1 = await dvsaFetch(getUrl, { method: "GET", headers: keyHeaders });
+    }
 
-    // Strategy B: POST with JSON body
+    if (r1.ok) return sendJson(res, 200, r1.data);
+
     const postUrl = `${apiBase}/trade/vehicles/mot-tests`;
-    const b = await dvsaFetch(postUrl, {
+    let r2 = await dvsaFetch(postUrl, {
       method: "POST",
-      headers: commonHeaders,
+      headers: bothHeaders,
       body: JSON.stringify({ registration: vrm }),
     });
 
-    if (b.ok) return sendJson(res, 200, b.data);
+    if (!r2.ok && r2.status === 403) {
+      r2 = await dvsaFetch(postUrl, {
+        method: "POST",
+        headers: keyHeaders,
+        body: JSON.stringify({ registration: vrm }),
+      });
+    }
 
-    // If both failed, return the best mapped error (prefer the later one)
-    const mapped = mapDvsaError(b.status || a.status, b.text || a.text);
-    return sendJson(res, mapped.status, {
-      error: mapped.message,
-      dvsa_status: b.status || a.status,
+    if (r2.ok) return sendJson(res, 200, r2.data);
+
+    // Return the REAL DVSA status (do not mask as 502)
+    const final = r2.status ? r2 : r1;
+    return sendJson(res, final.status || 502, {
+      error: "DVSA request failed",
+      dvsa_status: final.status || null,
+      // Keep upstream body minimal (helps debugging). Remove later if you want.
+      dvsa_hint: final.data || (final.text ? final.text.slice(0, 200) : null),
     });
   } catch (err) {
     return sendJson(res, 500, {
