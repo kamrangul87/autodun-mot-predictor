@@ -1,47 +1,55 @@
 // api/mot-history.js
-// Real DVSA MOT history proxy for Autodun MOT Predictor (Vercel Serverless Function)
+// Real DVSA MOT History API proxy for Autodun MOT Predictor (server-side only).
+// IMPORTANT: Never call DVSA directly from the browser. Keep secrets on Vercel.
 
-async function getDvsaToken() {
+let cachedToken = null;
+let cachedTokenExpiryMs = 0;
+
+function json(res, status, body) {
+  res.statusCode = status;
+  res.setHeader("Content-Type", "application/json");
+  res.end(JSON.stringify(body));
+}
+
+async function getAccessToken() {
+  const now = Date.now();
+  if (cachedToken && cachedTokenExpiryMs - now > 60_000) {
+    return cachedToken; // still valid (with 60s buffer)
+  }
+
   const tokenUrl = process.env.DVSA_TOKEN_URL;
   const clientId = process.env.DVSA_CLIENT_ID;
   const clientSecret = process.env.DVSA_CLIENT_SECRET;
   const scope = process.env.DVSA_SCOPE;
 
-  if (!tokenUrl || !clientId || !clientSecret) {
-    throw new Error("Missing DVSA OAuth env vars (DVSA_TOKEN_URL / DVSA_CLIENT_ID / DVSA_CLIENT_SECRET).");
+  if (!tokenUrl || !clientId || !clientSecret || !scope) {
+    throw new Error("Missing DVSA OAuth env vars (DVSA_TOKEN_URL/CLIENT_ID/CLIENT_SECRET/SCOPE).");
   }
 
-  // OAuth2 client_credentials
-  const body = new URLSearchParams({
-    grant_type: "client_credentials",
-  });
+  const body = new URLSearchParams();
+  body.set("grant_type", "client_credentials");
+  body.set("client_id", clientId);
+  body.set("client_secret", clientSecret);
+  body.set("scope", scope);
 
-  // Some OAuth servers require scope; DVSA may provide it
-  if (scope) body.set("scope", scope);
-
-  const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-
-  const res = await fetch(tokenUrl, {
+  const resp = await fetch(tokenUrl, {
     method: "POST",
-    headers: {
-      "Authorization": `Basic ${basic}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
   });
 
-  const txt = await res.text();
-  let json;
-  try { json = JSON.parse(txt); } catch { json = null; }
-
-  if (!res.ok) {
-    throw new Error(`DVSA token request failed (${res.status}): ${txt}`);
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    throw new Error(`Token request failed (${resp.status}): ${JSON.stringify(data)}`);
   }
 
-  const accessToken = json?.access_token;
-  if (!accessToken) {
-    throw new Error(`DVSA token response missing access_token: ${txt}`);
-  }
+  const accessToken = data.access_token;
+  const expiresInSec = Number(data.expires_in || 0);
+
+  if (!accessToken) throw new Error("Token response missing access_token.");
+
+  cachedToken = accessToken;
+  cachedTokenExpiryMs = Date.now() + Math.max(60, expiresInSec) * 1000;
 
   return accessToken;
 }
@@ -49,51 +57,61 @@ async function getDvsaToken() {
 export default async function handler(req, res) {
   try {
     if (req.method !== "POST") {
-      return res.status(405).json({ error: "Use POST with JSON body." });
+      return json(res, 405, { error: "Use POST with JSON body." });
     }
 
-    const { registration } = req.body || {};
+    // Vercel parses JSON automatically in many cases, but handle string body as fallback
+    let body = req.body;
+    if (typeof body === "string") {
+      try { body = JSON.parse(body); } catch { body = {}; }
+    }
+
+    const registration = body?.registration;
     if (!registration || typeof registration !== "string") {
-      return res.status(400).json({ error: "Missing or invalid registration." });
+      return json(res, 400, { error: "Missing or invalid registration." });
     }
 
     const regClean = registration.replace(/\s+/g, "").toUpperCase();
 
-    const apiBase = process.env.DVSA_API_BASE || "https://beta.check-mot.service.gov.uk";
-    const token = await getDvsaToken();
+    const apiBase = process.env.DVSA_API_BASE || "https://history.mot.api.gov.uk";
+    const apiKey = process.env.DVSA_API_KEY;
 
-    // DVSA endpoint path can vary by product/version.
-    // We will start with the common pattern and adjust based on DVSA response.
-    const url = `${apiBase}/trade/vehicles/mot-tests?registration=${encodeURIComponent(regClean)}`;
+    if (!apiKey) {
+      return json(res, 500, { error: "Server missing DVSA_API_KEY env var." });
+    }
 
-    const dvsaRes = await fetch(url, {
+    const token = await getAccessToken();
+
+    // MOT History API (commonly): /v1/trade/vehicles/registration/{registration}
+    const url = `${apiBase}/v1/trade/vehicles/registration/${encodeURIComponent(regClean)}`;
+
+    const dvsaResp = await fetch(url, {
       method: "GET",
       headers: {
-        "Authorization": `Bearer ${token}`,
         "Accept": "application/json",
+        "Authorization": `Bearer ${token}`,
+        "x-api-key": apiKey,
       },
     });
 
-    const dvsaText = await dvsaRes.text();
-    if (!dvsaRes.ok) {
-      // Pass through useful debugging info
-      return res.status(dvsaRes.status).json({
+    const dvsaText = await dvsaResp.text();
+    let dvsaJson = null;
+    try { dvsaJson = JSON.parse(dvsaText); } catch { /* keep as text */ }
+
+    if (!dvsaResp.ok) {
+      return json(res, dvsaResp.status, {
         error: "DVSA request failed",
-        status: dvsaRes.status,
-        details: dvsaText,
+        status: dvsaResp.status,
+        details: dvsaJson ?? dvsaText,
         used_url: url,
       });
     }
 
-    let dvsaJson;
-    try { dvsaJson = JSON.parse(dvsaText); } catch { dvsaJson = dvsaText; }
+    // Return the DVSA response (already contains make, fuelType, motTests, etc.)
+    return json(res, 200, dvsaJson ?? { raw: dvsaText });
 
-    return res.status(200).json({
-      registration: regClean,
-      raw: dvsaJson,
-    });
   } catch (err) {
-    return res.status(500).json({
+    return json(res, 500, {
       error: "Server error",
       message: err?.message || String(err),
     });
