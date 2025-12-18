@@ -1,102 +1,127 @@
-// api/mot-history.js
-// FINAL: DVSA Trade MOT History proxy — aligns to "200 OK" pattern (Authorization required)
+// /api/mot-history.js
+// DVSA MOT History API proxy (server-side only). Uses OAuth2 Client Credentials.
+// Requires headers: Authorization: Bearer <token> and X-API-Key: <api-key>.
+
+let cachedToken = null;
+let cachedTokenExpiryMs = 0;
 
 function sendJson(res, status, body) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Cache-Control", "no-store");
   res.end(JSON.stringify(body));
 }
 
-function normalizeVrm(input) {
+function cleanVrm(input) {
   return String(input || "")
     .toUpperCase()
     .replace(/\s+/g, "")
-    .replace(/[^A-Z0-9]/g, "");
+    .trim();
 }
 
-function isValidVrm(vrm) {
-  return /^[A-Z0-9]{2,8}$/.test(vrm);
-}
+async function getAccessToken() {
+  const now = Date.now();
+  if (cachedToken && cachedTokenExpiryMs - now > 60_000) {
+    return cachedToken; // keep 60s safety buffer
+  }
 
-async function readBody(req) {
-  return new Promise((resolve) => {
-    let data = "";
-    req.on("data", (c) => (data += c));
-    req.on("end", () => {
-      if (!data) return resolve({});
-      try {
-        resolve(JSON.parse(data));
-      } catch {
-        resolve({ __invalidJson: true });
-      }
-    });
+  const tokenUrl = process.env.DVSA_TOKEN_URL;      // from DVSA email
+  const clientId = process.env.DVSA_CLIENT_ID;      // from DVSA email
+  const clientSecret = process.env.DVSA_CLIENT_SECRET; // from DVSA email
+  const scope = process.env.DVSA_SCOPE || "https://tapi.dvsa.gov.uk/.default"; // DVSA usually provides this
+
+  if (!tokenUrl || !clientId || !clientSecret) {
+    throw new Error("Missing DVSA token env vars (DVSA_TOKEN_URL / DVSA_CLIENT_ID / DVSA_CLIENT_SECRET).");
+  }
+
+  const form = new URLSearchParams();
+  form.set("grant_type", "client_credentials");
+  form.set("client_id", clientId);
+  form.set("client_secret", clientSecret);
+  form.set("scope", scope);
+
+  const resp = await fetch(tokenUrl, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: form.toString(),
   });
+
+  const data = await resp.json().catch(() => null);
+
+  if (!resp.ok || !data?.access_token) {
+    // Do NOT leak secrets; return minimal diagnostics
+    const msg = data?.error_description || data?.error || "Failed to obtain access token";
+    throw new Error(`Token request failed (${resp.status}): ${msg}`);
+  }
+
+  const expiresIn = Number(data.expires_in || 3600);
+  cachedToken = data.access_token;
+  cachedTokenExpiryMs = Date.now() + expiresIn * 1000;
+
+  return cachedToken;
 }
 
 export default async function handler(req, res) {
   try {
-    const method = (req.method || "GET").toUpperCase();
-    if (method !== "GET" && method !== "POST") {
-      res.setHeader("Allow", "GET, POST");
-      return sendJson(res, 405, { error: "Method not allowed" });
+    if (req.method !== "GET") {
+      res.setHeader("Allow", "GET");
+      return sendJson(res, 405, { error: "Method not allowed. Use GET." });
     }
 
-    let vrm = "";
-    if (method === "GET") {
-      vrm = normalizeVrm(req.query?.vrm);
-    } else {
-      const body = await readBody(req);
-      if (body.__invalidJson) return sendJson(res, 400, { error: "Invalid JSON body" });
-      vrm = normalizeVrm(body.vrm || body.registration);
+    const vrm = cleanVrm(req.query.vrm || req.query.registration);
+    if (!vrm) {
+      return sendJson(res, 400, { error: 'VRM is required. Example: /api/mot-history?vrm=ML58FOU' });
     }
 
-    if (!isValidVrm(vrm)) return sendJson(res, 400, { error: "Invalid VRM. Example: ML58FOU" });
+    // Conservative VRM validation: 1–8 alphanumeric (spaces removed above)
+    if (!/^[A-Z0-9]{1,8}$/.test(vrm)) {
+      return sendJson(res, 400, { error: 'Invalid VRM. Example: ML58FOU' });
+    }
 
-    const apiBase = String(process.env.DVSA_API_BASE || "").replace(/\/+$/, "");
-    const apiKey = String(process.env.DVSA_API_KEY || "").trim();
+    const apiBase = process.env.DVSA_API_BASE; // e.g. https://history.mot.api.gov.uk (your working value)
+    const apiKey = process.env.DVSA_API_KEY;
 
-    if (!apiBase) return sendJson(res, 500, { error: "Missing DVSA_API_BASE" });
-    if (!apiKey) return sendJson(res, 500, { error: "Missing DVSA_API_KEY" });
+    if (!apiBase || !apiKey) {
+      return sendJson(res, 500, { error: "Missing DVSA_API_BASE or DVSA_API_KEY in environment variables." });
+    }
 
-    // This matches the common DVSA trade endpoint used in working examples
-    const url = `${apiBase}/trade/vehicles/mot-tests`;
+    // 1) Get OAuth token
+    const token = await getAccessToken();
 
-    const dvsaResp = await fetch(url, {
-      method: "POST",
+    // 2) Call DVSA MOT history endpoint
+    // NOTE: This path must match what DVSA enabled for your account.
+    // Your ReqBin success response structure matches this commonly-used endpoint:
+    // GET /v1/trade/vehicles/mot-tests?registration=<VRM>
+    const url = new URL("/v1/trade/vehicles/mot-tests", apiBase);
+    url.searchParams.set("registration", vrm);
+
+    const dvsaResp = await fetch(url.toString(), {
+      method: "GET",
       headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-
-        // ✅ IMPORTANT: DVSA is complaining "access token missing"
-        // So we provide it here exactly:
-        Authorization: `Bearer ${apiKey}`,
-
-        // Keep this too (harmless, helps if their gateway expects it)
-        "x-api-key": apiKey,
+        "Accept": "application/json",
+        "Authorization": `Bearer ${token}`,
+        "X-API-Key": apiKey,
       },
-      // ✅ JSON OBJECT (this is what your ReqBin screenshot showed)
-      body: JSON.stringify({ registration: vrm }),
     });
 
-    const text = await dvsaResp.text();
-    let data = null;
-    try {
-      data = text ? JSON.parse(text) : null;
-    } catch {
-      data = { raw: text };
-    }
+    const dvsaText = await dvsaResp.text();
+    let dvsaJson = null;
+    try { dvsaJson = JSON.parse(dvsaText); } catch (_) {}
 
     if (!dvsaResp.ok) {
+      // DVSA returns structured error codes like MOTH-FB-04 for missing token, etc. :contentReference[oaicite:2]{index=2}
       return sendJson(res, dvsaResp.status, {
         error: "DVSA request failed",
         dvsa_status: dvsaResp.status,
-        dvsa_response: data,
+        dvsa_response: dvsaJson || dvsaText,
       });
     }
 
-    return sendJson(res, 200, data);
+    // Return DVSA JSON directly (aligned to your ReqBin 200 response)
+    return sendJson(res, 200, dvsaJson ?? { raw: dvsaText });
   } catch (err) {
-    return sendJson(res, 500, { error: "Server error", message: String(err?.message || err) });
+    return sendJson(res, 500, {
+      error: "Server error",
+      message: err?.message || String(err),
+    });
   }
 }
