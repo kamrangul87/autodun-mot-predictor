@@ -1,5 +1,5 @@
 // api/mot-history.js
-// FINAL – DVSA Trade MOT History (API KEY ONLY)
+// FINAL: DVSA Trade MOT History proxy — aligns to "200 OK" pattern (Authorization required)
 
 function sendJson(res, status, body) {
   res.statusCode = status;
@@ -8,47 +8,83 @@ function sendJson(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-function normalizeVrm(vrm) {
-  return String(vrm || "")
+function normalizeVrm(input) {
+  return String(input || "")
     .toUpperCase()
     .replace(/\s+/g, "")
     .replace(/[^A-Z0-9]/g, "");
 }
 
+function isValidVrm(vrm) {
+  return /^[A-Z0-9]{2,8}$/.test(vrm);
+}
+
+async function readBody(req) {
+  return new Promise((resolve) => {
+    let data = "";
+    req.on("data", (c) => (data += c));
+    req.on("end", () => {
+      if (!data) return resolve({});
+      try {
+        resolve(JSON.parse(data));
+      } catch {
+        resolve({ __invalidJson: true });
+      }
+    });
+  });
+}
+
 export default async function handler(req, res) {
   try {
-    const vrm = normalizeVrm(req.query?.vrm);
-    if (!vrm) {
-      return sendJson(res, 400, { error: "Invalid VRM. Example: ML58FOU" });
+    const method = (req.method || "GET").toUpperCase();
+    if (method !== "GET" && method !== "POST") {
+      res.setHeader("Allow", "GET, POST");
+      return sendJson(res, 405, { error: "Method not allowed" });
     }
 
-    const apiBase = process.env.DVSA_API_BASE;
-    const apiKey = process.env.DVSA_API_KEY;
-
-    if (!apiBase || !apiKey) {
-      return sendJson(res, 500, { error: "Missing DVSA_API_BASE or DVSA_API_KEY" });
+    let vrm = "";
+    if (method === "GET") {
+      vrm = normalizeVrm(req.query?.vrm);
+    } else {
+      const body = await readBody(req);
+      if (body.__invalidJson) return sendJson(res, 400, { error: "Invalid JSON body" });
+      vrm = normalizeVrm(body.vrm || body.registration);
     }
 
-    const url = `${apiBase.replace(/\/+$/, "")}/trade/vehicles/mot-tests`;
+    if (!isValidVrm(vrm)) return sendJson(res, 400, { error: "Invalid VRM. Example: ML58FOU" });
+
+    const apiBase = String(process.env.DVSA_API_BASE || "").replace(/\/+$/, "");
+    const apiKey = String(process.env.DVSA_API_KEY || "").trim();
+
+    if (!apiBase) return sendJson(res, 500, { error: "Missing DVSA_API_BASE" });
+    if (!apiKey) return sendJson(res, 500, { error: "Missing DVSA_API_KEY" });
+
+    // This matches the common DVSA trade endpoint used in working examples
+    const url = `${apiBase}/trade/vehicles/mot-tests`;
 
     const dvsaResp = await fetch(url, {
       method: "POST",
       headers: {
-        "x-api-key": apiKey,
-        "Content-Type": "application/json",
         Accept: "application/json",
+        "Content-Type": "application/json",
+
+        // ✅ IMPORTANT: DVSA is complaining "access token missing"
+        // So we provide it here exactly:
+        Authorization: `Bearer ${apiKey}`,
+
+        // Keep this too (harmless, helps if their gateway expects it)
+        "x-api-key": apiKey,
       },
-      body: JSON.stringify([
-        { registration: vrm }
-      ]),
+      // ✅ JSON OBJECT (this is what your ReqBin screenshot showed)
+      body: JSON.stringify({ registration: vrm }),
     });
 
     const text = await dvsaResp.text();
-    let data;
+    let data = null;
     try {
-      data = JSON.parse(text);
+      data = text ? JSON.parse(text) : null;
     } catch {
-      data = text;
+      data = { raw: text };
     }
 
     if (!dvsaResp.ok) {
@@ -61,9 +97,6 @@ export default async function handler(req, res) {
 
     return sendJson(res, 200, data);
   } catch (err) {
-    return sendJson(res, 500, {
-      error: "Server error",
-      message: err.message,
-    });
+    return sendJson(res, 500, { error: "Server error", message: String(err?.message || err) });
   }
 }
