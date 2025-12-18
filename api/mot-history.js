@@ -20,21 +20,6 @@ function isValidVrm(vrm) {
   return /^[A-Z0-9]{2,8}$/.test(vrm);
 }
 
-async function readBody(req) {
-  return new Promise((resolve) => {
-    let data = "";
-    req.on("data", (c) => (data += c));
-    req.on("end", () => {
-      if (!data) return resolve({});
-      try {
-        resolve(JSON.parse(data));
-      } catch {
-        resolve({ __invalidJson: true });
-      }
-    });
-  });
-}
-
 async function getAccessToken() {
   const now = Date.now();
   if (cachedToken && cachedTokenExpiryMs - now > 60_000) return cachedToken;
@@ -81,80 +66,59 @@ async function dvsaFetch(url, opts) {
   return { ok: r.ok, status: r.status, text, data };
 }
 
+function looksLikeTokenMissing(resp) {
+  const msg = resp?.data?.errorMessage || resp?.data?.message || "";
+  const code = resp?.data?.errorCode || "";
+  return String(msg).toLowerCase().includes("access token is missing") || code === "MOTH-FB-04";
+}
+
 export default async function handler(req, res) {
   try {
-    const method = (req.method || "GET").toUpperCase();
-    if (method !== "GET" && method !== "POST") {
-      res.setHeader("Allow", "GET, POST");
-      return sendJson(res, 405, { error: "Method not allowed" });
-    }
-
-    let vrm = "";
-    if (method === "GET") {
-      vrm = normalizeVrm(req.query?.vrm);
-    } else {
-      const body = await readBody(req);
-      if (body.__invalidJson) return sendJson(res, 400, { error: "Invalid JSON body" });
-      vrm = normalizeVrm(body.vrm || body.registration);
-    }
-
+    const vrm = normalizeVrm(req.query?.vrm);
     if (!isValidVrm(vrm)) return sendJson(res, 400, { error: "Invalid VRM. Example: ML58FOU" });
 
     const apiBase = String(process.env.DVSA_API_BASE || "").replace(/\/+$/, "");
     if (!apiBase) throw new Error("Missing DVSA_API_BASE");
 
-    const apiKey = process.env.DVSA_API_KEY || "";
-    const token = await getAccessToken();
+    const apiKey = (process.env.DVSA_API_KEY || "").trim();
+    if (!apiKey) throw new Error("Missing DVSA_API_KEY");
 
-    const baseHeaders = {
+    const url = `${apiBase}/trade/vehicles/mot-tests?registration=${encodeURIComponent(vrm)}`;
+
+    // MODE A: OAuth Bearer + x-api-key
+    const oauthToken = await getAccessToken();
+
+    const modeAHeaders = {
       Accept: "application/json",
-      "Content-Type": "application/json",
+      Authorization: `Bearer ${oauthToken}`,
+      "x-api-key": apiKey,
     };
 
-    // Send API key in both common header names (safe; headers are case-insensitive)
-    const keyHeaders = { ...baseHeaders };
-    if (apiKey) {
-      keyHeaders["x-api-key"] = apiKey;
-      keyHeaders["api-key"] = apiKey;
-    }
+    let r = await dvsaFetch(url, { method: "GET", headers: modeAHeaders });
+    if (r.ok) return sendJson(res, 200, r.data);
 
-    // Try 1: Bearer + API key (most strict gateways)
-    const bothHeaders = { ...keyHeaders, Authorization: `Bearer ${token}` };
+    // MODE B: API key as the Bearer token (some DVSA setups work like this)
+    if (looksLikeTokenMissing(r) || r.status === 401 || r.status === 403) {
+      const modeBHeaders = {
+        Accept: "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      };
 
-    const getUrl = `${apiBase}/trade/vehicles/mot-tests?registration=${encodeURIComponent(vrm)}`;
-    let r1 = await dvsaFetch(getUrl, { method: "GET", headers: bothHeaders });
+      const r2 = await dvsaFetch(url, { method: "GET", headers: modeBHeaders });
+      if (r2.ok) return sendJson(res, 200, r2.data);
 
-    if (!r1.ok && r1.status === 403) {
-      // Try 2: API key ONLY (common reason ReqBin works but code fails)
-      r1 = await dvsaFetch(getUrl, { method: "GET", headers: keyHeaders });
-    }
-
-    if (r1.ok) return sendJson(res, 200, r1.data);
-
-    const postUrl = `${apiBase}/trade/vehicles/mot-tests`;
-    let r2 = await dvsaFetch(postUrl, {
-      method: "POST",
-      headers: bothHeaders,
-      body: JSON.stringify({ registration: vrm }),
-    });
-
-    if (!r2.ok && r2.status === 403) {
-      r2 = await dvsaFetch(postUrl, {
-        method: "POST",
-        headers: keyHeaders,
-        body: JSON.stringify({ registration: vrm }),
+      // Return best debug info (safe)
+      return sendJson(res, r2.status || 502, {
+        error: "DVSA request failed",
+        dvsa_status: r2.status,
+        dvsa_hint: r2.data || (r2.text ? r2.text.slice(0, 200) : null),
       });
     }
 
-    if (r2.ok) return sendJson(res, 200, r2.data);
-
-    // Return the REAL DVSA status (do not mask as 502)
-    const final = r2.status ? r2 : r1;
-    return sendJson(res, final.status || 502, {
+    return sendJson(res, r.status || 502, {
       error: "DVSA request failed",
-      dvsa_status: final.status || null,
-      // Keep upstream body minimal (helps debugging). Remove later if you want.
-      dvsa_hint: final.data || (final.text ? final.text.slice(0, 200) : null),
+      dvsa_status: r.status,
+      dvsa_hint: r.data || (r.text ? r.text.slice(0, 200) : null),
     });
   } catch (err) {
     return sendJson(res, 500, {
