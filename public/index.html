@@ -333,6 +333,11 @@
     const lookupBtn = document.getElementById("lookup-btn");
     const lookupStatus = document.getElementById("lookup-status");
 
+    // ✅ NEW: Deep-link automation flags (prevent double runs)
+    let __autoLookupPending = false;
+    let __autoPredictPending = false;
+    let __autoPredictedOnce = false;
+
     function getBand(score) {
       if (score < 40) return "LOW";
       if (score < 70) return "MEDIUM";
@@ -409,6 +414,24 @@
       if (f.includes("electric")) return "electric";
       if (f.includes("hybrid")) return "hybrid";
       return "";
+    }
+
+    // ✅ NEW: helper to check if we have minimum fields for prediction
+    function canAutoPredict() {
+      const age = document.getElementById("vehicle_age").value;
+      const mileage = document.getElementById("mileage").value;
+      return !!(age && mileage && !isNaN(parseFloat(age)) && !isNaN(parseFloat(mileage)));
+    }
+
+    // ✅ NEW: call predict once, safely
+    function runAutoPredictOnce() {
+      if (__autoPredictedOnce) return;
+      if (!canAutoPredict()) return;
+
+      __autoPredictedOnce = true;
+      setTimeout(() => {
+        form.dispatchEvent(new Event("submit"));
+      }, 150);
     }
 
     // ✅ Number plate lookup handler (REAL DVSA via your backend GET /api/mot-history?vrm=)
@@ -489,6 +512,11 @@
           ` · MOT expiry: <strong>${expiry}</strong>` +
           ` · Last mileage: <strong>${lastMileage}</strong>` +
           ` · Previous fails: <strong>${failCount}</strong>.`;
+
+        // ✅ NEW: if page opened via ?vrm=, auto-run predict after data fill
+        if (__autoPredictPending) {
+          runAutoPredictOnce();
+        }
       } catch (err) {
         console.error(err);
         lookupStatus.textContent =
@@ -730,11 +758,16 @@
       const prevFails = document.getElementById("previous_fails").value;
       const plate = document.getElementById("plate").value.trim();
 
+      // ✅ keep your existing share params
       if (age) url.searchParams.set("age", age);
       if (mileage) url.searchParams.set("mileage", mileage);
       if (fuel) url.searchParams.set("fuel", fuel);
       if (prevFails) url.searchParams.set("fails", prevFails);
       if (plate) url.searchParams.set("plate", plate);
+
+      // ✅ NEW: optional also include vrm for nicer share links (same as plate)
+      const vrmNorm = normalizeVrm(plate);
+      if (vrmNorm) url.searchParams.set("vrm", vrmNorm);
 
       const link = url.toString();
 
@@ -753,27 +786,64 @@
       }
     }
 
-    // When opening a shared link, prefill form & auto-predict
+    // When opening a shared link, prefill form & auto actions
     function initFromUrl() {
       try {
         const url = new URL(window.location.href);
 
+        // ✅ NEW: vrm deep-link support (primary)
+        const vrm = url.searchParams.get("vrm");
+
+        // existing share params (secondary)
         const age = url.searchParams.get("age");
         const mileage = url.searchParams.get("mileage");
         const fuel = url.searchParams.get("fuel");
         const fails = url.searchParams.get("fails");
         const plate = url.searchParams.get("plate");
 
-        if (plate) document.getElementById("plate").value = plate;
+        // 1) If vrm exists => set plate and auto lookup + auto predict
+        if (vrm) {
+          const clean = normalizeVrm(vrm);
+          if (clean) {
+            plateInput.value = clean;
+
+            __autoLookupPending = true;
+            __autoPredictPending = true;
+
+            // auto-click lookup after render
+            setTimeout(() => {
+              // If user already has age+mileage in URL, we still prefer DVSA fill
+              lookupBtn.click();
+            }, 120);
+          }
+        }
+
+        // 2) Fallback: if plate exists (old share links) set it (but do NOT auto lookup unless vrm also present)
+        if (!vrm && plate) {
+          document.getElementById("plate").value = plate;
+        }
+
+        // 3) Apply share params (age/mileage etc.)
         if (age) document.getElementById("vehicle_age").value = age;
         if (mileage) document.getElementById("mileage").value = mileage;
         if (fuel) document.getElementById("fuel_type").value = fuel;
         if (fails) document.getElementById("previous_fails").value = fails;
 
-        if (age && mileage) {
+        // 4) Existing behavior: if age+mileage exist, auto predict
+        // But avoid double-submit if we're doing vrm->lookup->predict.
+        if (!vrm && age && mileage) {
           setTimeout(() => {
             form.dispatchEvent(new Event("submit"));
           }, 200);
+        }
+
+        // 5) If vrm existed BUT DVSA fails (e.g., API error), still try auto predict if age+mileage were provided
+        if (vrm) {
+          setTimeout(() => {
+            if (!__autoPredictedOnce && canAutoPredict()) {
+              runAutoPredictOnce();
+            }
+          }, 1800);
         }
       } catch (err) {
         console.error("URL init failed", err);
