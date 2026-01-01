@@ -241,6 +241,17 @@
     .lookup-status strong {
       color: #e5e7eb;
     }
+
+    /* Action buttons group in result box */
+    .action-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .action-row button {
+      flex: 1;
+      width: auto !important;
+    }
   </style>
 
   <!-- jsPDF for PDF generation -->
@@ -432,6 +443,21 @@
       setTimeout(() => {
         form.dispatchEvent(new Event("submit"));
       }, 150);
+    }
+
+    // ✅ NEW: AI Assistant (MOT intent) deep-link button handler
+    function openMotAiAssistant() {
+      const vrm = normalizeVrm(plateInput.value);
+      const base = "https://ai.autodun.com/ai-assistant?intent=mot";
+      const url = vrm ? `${base}&vrm=${encodeURIComponent(vrm)}` : base;
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+
+    // ✅ OPTIONAL helper (kept for reuse / future)
+    function getAiAssistantHref() {
+      const vrm = normalizeVrm(plateInput.value);
+      const base = "https://ai.autodun.com/ai-assistant?intent=mot";
+      return vrm ? `${base}&vrm=${encodeURIComponent(vrm)}` : base;
     }
 
     // ✅ Number plate lookup handler (REAL DVSA via your backend GET /api/mot-history?vrm=)
@@ -657,36 +683,51 @@
             ${insightsHtml}
 
             <br />
-            <button onclick="downloadPdf()"
+
+            <div class="action-row">
+              <button type="button" onclick="downloadPdf()"
+                style="
+                  padding: 10px 14px;
+                  border-radius: 999px;
+                  border: none;
+                  background: linear-gradient(to right, #3b82f6, #06b6d4);
+                  color: #020617;
+                  font-weight: 600;
+                  font-size: 1rem;
+                  cursor: pointer;
+                ">
+                Download PDF
+              </button>
+
+              <button type="button" onclick="copyShareLink()"
+                style="
+                  padding: 10px 14px;
+                  border-radius: 999px;
+                  border: 1px solid #38bdf8;
+                  background: transparent;
+                  color: #e5e7eb;
+                  font-weight: 600;
+                  font-size: 1rem;
+                  cursor: pointer;
+                ">
+                Copy Link
+              </button>
+            </div>
+
+            <button type="button" onclick="openMotAiAssistant()"
               style="
                 width: 100%;
                 padding: 10px 14px;
-                margin-top: 12px;
+                margin-top: 10px;
                 border-radius: 999px;
                 border: none;
-                background: linear-gradient(to right, #3b82f6, #06b6d4);
+                background: linear-gradient(to right, #22c55e, #22d3ee);
                 color: #020617;
-                font-weight: 600;
+                font-weight: 700;
                 font-size: 1rem;
                 cursor: pointer;
               ">
-              Download MOT Report (PDF)
-            </button>
-
-            <button type="button" onclick="copyShareLink()"
-              style="
-                width: 100%;
-                padding: 9px 14px;
-                margin-top: 8px;
-                border-radius: 999px;
-                border: 1px solid #38bdf8;
-                background: transparent;
-                color: #e5e7eb;
-                font-weight: 500;
-                font-size: 0.95rem;
-                cursor: pointer;
-              ">
-              Copy share link
+              AI Assistant
             </button>
           </div>
         `;
