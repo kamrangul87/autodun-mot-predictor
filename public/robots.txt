@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://mot.autodun.com/sitemap.xml
